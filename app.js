@@ -6837,16 +6837,27 @@ app.use(function (err, req, res, next) {
 })
 
 // ---------- Start ----------
+// Bind a port only when app.js is the entry point, so tests can require it safely.
 const PORT = process.env.PORT || 3000
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
-})
-// Some isolated route tests replace Express' listen method with a minimal
-// close-only stub. Real Express servers always expose EventEmitter.on().
-if (server && typeof server.on === 'function') {
-  supportVoiceGateway.attach(server)
+
+let server = null
+function start() {
+  if (server) return server
+  server = app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`)
+  })
+  // WebSocket gateway needs a live server to attach to.
+  if (server && typeof server.on === 'function') {
+    supportVoiceGateway.attach(server)
+  }
+  app.supportVoiceServer = server
+  return server
+}
+
+if (require.main === module) {
+  start()
 }
 
 app.supportVoiceGateway = supportVoiceGateway
-app.supportVoiceServer = server
+app.start = start
 module.exports = app
