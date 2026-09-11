@@ -61,9 +61,9 @@ test('signed agreement routes require legal-billing access on the billing owner 
 });
 
 test('client billing summary requires legal-billing access and resolves billing owner', () => {
-  const source = readProjectFile('app.js');
-  const routeStart = source.indexOf("app.get('/clients/billing/summary'");
-  const routeEnd = source.indexOf('const CLIENT_DASHBOARD_TABS', routeStart);
+  const source = readProjectFile('src', 'routes', 'client', 'billing.js');
+  const routeStart = source.indexOf("router.get('/clients/billing/summary'");
+  const routeEnd = source.indexOf("router.post('/clients/billing/portal-session'", routeStart);
   assert.notEqual(routeStart, -1);
   assert.notEqual(routeEnd, -1);
 

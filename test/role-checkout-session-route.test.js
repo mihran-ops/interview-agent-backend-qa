@@ -294,17 +294,17 @@ function stubRouteModules() {
   }
 }
 
+const projectRoot = path.join(__dirname, '..')
+
 function buildApp(db) {
-  for (const filename of [
-    appPath,
-    supabaseClientPath,
-    authPath,
-    generateRubricPath,
-    stripePath,
-    stripeClientPath,
-    dotenvPath,
-    ...ROUTE_STUBS.map((relative) => path.join(__dirname, '..', relative))
-  ]) {
+  // Every first-party module reloads, because the routers app.js pulls in cache the
+  // stubs they were given on the previous build.
+  for (const filename of Object.keys(require.cache)) {
+    if (filename.startsWith(projectRoot) && !filename.includes('node_modules')) {
+      delete require.cache[filename]
+    }
+  }
+  for (const filename of [stripePath, dotenvPath]) {
     delete require.cache[filename]
   }
 
