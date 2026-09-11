@@ -7,7 +7,7 @@ const { test } = require('node:test');
 const express = require('express');
 
 const projectRoot = path.resolve(__dirname, '..');
-const routePath = path.join(projectRoot, 'routes', 'automation.js');
+const routePath = path.join(projectRoot, 'src', 'routes', 'automation', 'index.js');
 const supabaseClientPath = path.join(projectRoot, 'src', 'lib', 'supabaseClient.js');
 const authMiddlewarePath = path.join(projectRoot, 'src', 'middleware', 'auth.js');
 const mailerPath = path.join(projectRoot, 'utils', 'mailer.js');
@@ -155,6 +155,13 @@ function injectModule(filename, exports) {
 }
 
 function buildApp(db) {
+  // The router is assembled from several files that each cache the modules stubbed
+  // below, so every first-party module reloads on each build.
+  for (const cached of Object.keys(require.cache)) {
+    if (cached.startsWith(projectRoot) && !cached.includes('node_modules')) {
+      delete require.cache[cached]
+    }
+  }
   delete require.cache[routePath];
   delete require.cache[supabaseClientPath];
   delete require.cache[authMiddlewarePath];

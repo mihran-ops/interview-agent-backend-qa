@@ -19,7 +19,7 @@ const {
   normalizeAlphaScreenPlanKey
 } = require('../src/lib/alphaScreenPackages')
 
-const routePath = path.join(__dirname, '..', 'routes', 'alphaScreenPackages.js')
+const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'alphascreen', 'index.js')
 const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
 const STALE_ANNUAL_PRICE_PATTERN = new RegExp([
   String(3229 + 0.2).replace('.', '\\.'),

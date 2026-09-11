@@ -44,7 +44,7 @@ async function publicStatusRateLimit(req, res, next) {
   return next();
 }
 
-router.get('/public/interview-status', publicStatusRateLimit, async (req, res) => {
+router.get('/interview-status', publicStatusRateLimit, async (req, res) => {
   const request_id = req.request_id || req.headers['x-request-id'] || req.headers['x-correlation-id'] || null;
   try {
     const interview_id = String(req.query?.interview_id || '').trim();

@@ -406,6 +406,7 @@ test('all conversation-create paths use the canonical authenticated callback bui
   const legacyRoute = read('createTavusInterview.js');
   const legacyInternal = read('lib/createTavusInterviewInternal.js');
   const activeWebhook = read('routes/webhook.js');
+  const tavusEventPipeline = read('src/services/tavusEvents/index.js');
   const legacyWebhook = read('handlers/tavusWebhook.js');
   const app = read('app.js');
 
@@ -418,11 +419,18 @@ test('all conversation-create paths use the canonical authenticated callback bui
     activeWebhook,
     /router\.post\(\s*['"]\/tavus['"],\s*authenticateTavusWebhookRequest,\s*parseTavusWebhookJson,\s*handleTavusWebhookJsonError/,
   );
+  // The event pipeline now lives in the service, so the ordering invariant spans two
+  // files: the middleware chain pins authentication and bounded parsing ahead of the
+  // event handler, and the handler is where payload validation runs.
+  const authAt = activeWebhook.indexOf('authenticateTavusWebhookRequest,');
+  const parseAt = activeWebhook.indexOf('parseTavusWebhookJson,', authAt);
+  const handlerAt = activeWebhook.indexOf('tavusEvents.handleTavusWebhookEvent', parseAt);
   assert.ok(
-    activeWebhook.indexOf('authenticateTavusWebhookRequest,\n  parseTavusWebhookJson')
-      < activeWebhook.indexOf('validateTavusWebhookPayload(body)'),
-    'sender authentication and bounded JSON parsing must precede payload validation',
+    authAt !== -1 && parseAt > authAt && handlerAt > parseAt,
+    'sender authentication and bounded JSON parsing must precede the event handler',
   );
+  assert.match(tavusEventPipeline, /validateTavusWebhookPayload/);
+  assert.doesNotMatch(activeWebhook, /validateTavusWebhookPayload/);
   assert.match(activeWebhook, /express\.json\(\{ limit: '10mb' \}\)/);
   assert.match(activeWebhook, /error: 'invalid_webhook_payload'/);
   assert.match(legacyWebhook, /verifyTavusWebhookRequest/);

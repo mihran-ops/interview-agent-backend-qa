@@ -4,9 +4,10 @@ const assert = require('node:assert/strict')
 const express = require('express')
 const http = require('node:http')
 const path = require('node:path')
+const projectRoot = path.resolve(__dirname, '..')
 const { test } = require('node:test')
 
-const routePath = path.join(__dirname, '..', 'routes', 'alphaScreenPackages.js')
+const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'alphascreen', 'index.js')
 const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
 const rateLimitPath = path.join(__dirname, '..', 'src', 'lib', 'rateLimit.js')
 const STALE_ANNUAL_PRICE_PATTERN = new RegExp([
@@ -168,6 +169,13 @@ function makeDb(options = {}) {
 }
 
 function buildApp(db, env = {}) {
+  // The router is assembled from several files that each cache the modules stubbed
+  // below, so every first-party module reloads on each build.
+  for (const cached of Object.keys(require.cache)) {
+    if (cached.startsWith(projectRoot) && !cached.includes('node_modules')) {
+      delete require.cache[cached]
+    }
+  }
   delete require.cache[routePath]
   delete require.cache[supabaseClientPath]
   delete require.cache[rateLimitPath]

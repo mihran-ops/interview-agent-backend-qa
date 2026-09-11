@@ -68,8 +68,7 @@ const path = require('path')
 const { supabaseAdmin } = require('./src/lib/supabaseClient')
 const dashboardRouter = require('./routes/dashboard')
 const rolesRouter = require('./routes/roles')
-const { createRoleJdReplacementRouter } = require('./routes/roleJdReplacement')
-const automationRouter = require('./routes/automation')
+const automationRouter = require('./src/routes/automation')
 const { requireAuth, withClientScope } = require('./src/middleware/auth')
 const { createSupportVoiceGateway } = require('./src/lib/supportVoiceGateway')
 const { isInterviewRecoveryCoreEnabled, isInterviewRecoveryCoreEmailEnabled } = require('./src/lib/interviewAttemptService')
@@ -245,14 +244,11 @@ app.use('/dashboard', dashboardRouter)
 app.use('/api/dashboard', dashboardRouter)
 app.use('/roles', rolesRouter)
 app.use('/api/roles', rolesRouter)
-const roleJdReplacementRouter = createRoleJdReplacementRouter()
-app.use('/roles', roleJdReplacementRouter)
-app.use('/api/roles', roleJdReplacementRouter)
 app.use('/automation', automationRouter)
 app.use('/api/automation', automationRouter)
 app.use('/feedback', require('./routes/feedback'))
 app.use('/api/feedback', require('./routes/feedback'))
-app.use('/api/alphascreen', require('./routes/alphaScreenPackages'))
+app.use('/api/alphascreen', require('./src/routes/public/alphascreen'))
 app.use('/api/public-analytics', require('./routes/publicAnalytics'))
 app.use('/api/public-leads', require('./routes/publicLeads'))
 
@@ -273,12 +269,12 @@ app.use('/admin', require('./src/routes/admin'))
 /* ======================= END: Admin guard + Admin API ======================= */
 
 app.use('/kb', require('./routes/kb'))
-app.use('/', require('./routes/tavus'))
-app.use('/', require('./routes/publicInterviewStatus'))
+app.use('/tavus', require('./routes/tavus'))
+app.use('/public', require('./routes/publicInterviewStatus'))
 try {
-  app.use('/membership-agreements', require('./routes/membershipAgreementsPublic'))
+  app.use('/membership-agreements', require('./src/routes/public/membershipAgreements'))
 } catch (e) {
-  console.error('[mount] Failed to load routes/membershipAgreementsPublic:', e?.message || e)
+  console.error('[mount] Failed to load src/routes/public/membershipAgreements:', e?.message || e)
 }
 
 // ---------- JD upload route (authenticated + scoped) ----------

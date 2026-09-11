@@ -73,7 +73,7 @@ async function createHarness({ planSetting, planError = false, internalSynthetic
   else delete process.env.INTERNAL_SYNTHETIC_INTERVIEW_CLIENT_IDS;
 
   const app = express();
-  app.use(require(routePath));
+  app.use('/public', require(routePath));
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return {

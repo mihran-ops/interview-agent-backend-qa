@@ -13,6 +13,7 @@ const { normalizeInterviewType, normalizeRoleInterviewTypeForRead } = require('.
 const { hasClientAccess, hasClientManagerAccess } = require('../src/lib/serviceRoleAuthorization');
 
 const { requireAuth, withClientScope } = require('../src/middleware/auth');
+const { createRoleJdReplacementRouter } = require('./roleJdReplacement');
 
 // SendGrid setup for rubric change notification
 const sg = require('@sendgrid/mail');
@@ -731,5 +732,8 @@ ${questions.map((q, i) => `${i + 1}. ${q}`).join('\n')}
     return res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Registered last, which is where the second /roles mount used to put it.
+router.use(createRoleJdReplacementRouter());
 
 module.exports = router;

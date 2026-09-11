@@ -23,7 +23,7 @@ const ACTIVE_CALLERS = [
   'src/lib/tavusVendorReconciliation.js',
   'src/lib/platformHealth/tavusHealth.js',
   'routes/tavus.js',
-  'routes/webhook.js',
+  'src/services/tavusEvents/index.js',
   'lib/tavusClient.js',
   'scripts/patchTavusQaP1Persona.js',
   'scripts/syncTavusPersona.js',
@@ -53,7 +53,7 @@ test('all active Tavus API callers use the canonical shared client', () => {
     'lib/tavusDocuments.js',
     'src/lib/platformHealth/tavusHealth.js',
     'routes/tavus.js',
-    'routes/webhook.js',
+    'src/services/tavusEvents/index.js',
     'lib/tavusClient.js',
     'scripts/patchTavusQaP1Persona.js',
     'scripts/syncTavusPersona.js',
@@ -78,7 +78,7 @@ test('only documented inactive legacy modules retain obsolete Tavus direct URLs'
 });
 
 test('webhook transcript and perception paths still store callback bodies without fetching provider URLs', () => {
-  const source = read('routes/webhook.js');
+  const source = read('src/services/tavusEvents/index.js');
   assert.match(source, /putJsonToStorage\(TRANSCRIPTS_BUCKET, pathName, body\)/);
   assert.match(source, /putJsonToStorage\(TRANSCRIPTS_BUCKET, perceptionPath, body\)/);
   assert.doesNotMatch(source, /putJsonToStorage\([^\n]+transcript_url/);

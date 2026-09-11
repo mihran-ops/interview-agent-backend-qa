@@ -85,7 +85,7 @@ function hasAnalysisData(value) {
   return true;
 }
 
-router.post('/tavus/end-conversation', express.json({ limit: '1mb' }), async (req, res) => {
+router.post('/end-conversation', express.json({ limit: '1mb' }), async (req, res) => {
   const request_id = req.request_id || req.headers['x-request-id'] || req.headers['x-correlation-id'] || null;
   try {
     const conversation_id = typeof req.body?.conversation_id === 'string' ? req.body.conversation_id.trim() : '';
@@ -495,7 +495,7 @@ function createClientTelemetryHandler({
 
 // Diagnostic delivery is best effort and separate from interview control.
 router.post(
-  '/tavus/client-telemetry',
+  '/client-telemetry',
   express.json({ limit: '8kb' }),
   createClientTelemetryHandler(),
 );

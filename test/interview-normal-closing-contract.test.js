@@ -17,7 +17,7 @@ const { isTerminalInterviewToolName } = require('../src/lib/tavusTerminalTool');
 
 const ROOT = path.join(__dirname, '..');
 const personaScript = fs.readFileSync(path.join(ROOT, 'scripts', 'patchTavusQaP1Persona.js'), 'utf8');
-const webhookSource = fs.readFileSync(path.join(ROOT, 'routes', 'webhook.js'), 'utf8');
+const webhookSource = fs.readFileSync(path.join(ROOT, 'src', 'services', 'tavusEvents', 'index.js'), 'utf8');
 
 function occurrences(value, search) {
   return String(value).split(search).length - 1;
