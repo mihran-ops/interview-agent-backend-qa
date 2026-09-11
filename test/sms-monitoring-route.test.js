@@ -83,9 +83,9 @@ test('route failures are bounded and do not expose raw diagnostics', async () =>
 });
 
 test('app mounts the monitoring router behind existing auth and admin authorization', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'admin', 'index.js'), 'utf8');
   assert.match(
     source,
-    /adminRouter\.use\('\/sms-monitoring', requireAuth, requireAdmin, createAdminSmsMonitoringRouter\(\)\)/,
+    /router\.use\('\/sms-monitoring', requireAuth, requireAdmin, createAdminSmsMonitoringRouter\(\)\)/,
   );
 });

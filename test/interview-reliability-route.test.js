@@ -104,9 +104,9 @@ test('route maps service failures to bounded responses without raw diagnostics',
 });
 
 test('app mounts the diagnostics router behind existing auth and admin authorization', () => {
-  const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
+  const adminSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'admin', 'index.js'), 'utf8');
   assert.match(
-    appSource,
-    /adminRouter\.use\('\/interview-reliability', requireAuth, requireAdmin, createAdminInterviewReliabilityRouter\(\)\)/,
+    adminSource,
+    /router\.use\('\/interview-reliability', requireAuth, requireAdmin, createAdminInterviewReliabilityRouter\(\)\)/,
   );
 });

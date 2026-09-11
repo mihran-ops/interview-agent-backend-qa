@@ -144,7 +144,7 @@ test('endpoint activity lookup delegates to the shared eligibility helper', asyn
 test('client and admin role list sources expose the eligibility summary', () => {
   const root = path.join(__dirname, '..');
   const clientListSource = fs.readFileSync(path.join(root, 'routes', 'roles.js'), 'utf8');
-  const adminListSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  const adminListSource = fs.readFileSync(path.join(root, 'src', 'routes', 'admin', 'roles.js'), 'utf8');
   const replacementServiceSource = fs.readFileSync(path.join(root, 'src', 'lib', 'roleJdReplacement.js'), 'utf8');
 
   assert.match(clientListSource, /getRoleJdReplacementEligibility/);

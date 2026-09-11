@@ -348,9 +348,9 @@ function tavusHealthContext(overrides = {}) {
 }
 
 test('GET /admin/metrics route is registered behind admin auth', () => {
-  const appPath = path.resolve(__dirname, '../app.js');
-  const source = fs.readFileSync(appPath, 'utf8');
-  assert.match(source, /adminRouter\.get\('\/metrics', requireAuth, requireAdmin/);
+  const routePath = path.resolve(__dirname, '../src/routes/admin/metrics.js');
+  const source = fs.readFileSync(routePath, 'utf8');
+  assert.match(source, /router\.get\('\/metrics', requireAuth, requireAdmin/);
 });
 
 test('platform health adapter framework includes all required service files', () => {

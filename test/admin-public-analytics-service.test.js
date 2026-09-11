@@ -167,14 +167,15 @@ const NOW = new Date('2026-06-22T12:00:00.000Z');
 
 test('admin public analytics route is registered behind admin auth and public write routes remain mounted', () => {
   const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
-  assert.match(appSource, /adminRouter\.get\('\/public-analytics', requireAuth, requireAdmin/);
-  assert.match(appSource, /adminRouter\.get\('\/public-analytics\/leads\.csv', requireAuth, requireAdmin/);
-  assert.match(appSource, /adminRouter\.post\('\/public-analytics\/leads\/archive', requireAuth, requireAdmin/);
-  assert.match(appSource, /adminRouter\.post\('\/public-analytics\/leads\/unarchive', requireAuth, requireAdmin/);
-  assert.match(appSource, /adminRouter\.post\('\/public-analytics\/leads\/:id\/archive', requireAuth, requireAdmin/);
-  assert.match(appSource, /adminRouter\.post\('\/public-analytics\/leads\/:id\/unarchive', requireAuth, requireAdmin/);
-  assert.match(appSource, /Content-Disposition/);
-  assert.match(appSource, /X-Export-Row-Count/);
+  const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'admin', 'publicAnalytics.js'), 'utf8');
+  assert.match(routeSource, /router\.get\('\/public-analytics', requireAuth, requireAdmin/);
+  assert.match(routeSource, /router\.get\('\/public-analytics\/leads\.csv', requireAuth, requireAdmin/);
+  assert.match(routeSource, /router\.post\('\/public-analytics\/leads\/archive', requireAuth, requireAdmin/);
+  assert.match(routeSource, /router\.post\('\/public-analytics\/leads\/unarchive', requireAuth, requireAdmin/);
+  assert.match(routeSource, /router\.post\('\/public-analytics\/leads\/:id\/archive', requireAuth, requireAdmin/);
+  assert.match(routeSource, /router\.post\('\/public-analytics\/leads\/:id\/unarchive', requireAuth, requireAdmin/);
+  assert.match(routeSource, /Content-Disposition/);
+  assert.match(routeSource, /X-Export-Row-Count/);
   assert.match(appSource, /app\.use\('\/api\/public-analytics', require\('\.\/routes\/publicAnalytics'\)\)/);
   assert.match(appSource, /app\.use\('\/api\/public-leads', require\('\.\/routes\/publicLeads'\)\)/);
 });

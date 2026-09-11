@@ -24,8 +24,8 @@ test('claim first-role credit RPC execute is limited to service_role', () => {
 });
 
 test('admin reset diagnostics do not log raw password setup action links', () => {
-  const source = readProjectFile('app.js');
-  const routeStart = source.indexOf("adminRouter.post('/send-password-reset'");
+  const source = readProjectFile('src', 'routes', 'admin', 'members.js');
+  const routeStart = source.indexOf("router.post('/send-password-reset'");
   const routeEnd = source.indexOf("return res.json({ ok: true, request_id })", routeStart);
   assert.notEqual(routeStart, -1);
   assert.notEqual(routeEnd, -1);
