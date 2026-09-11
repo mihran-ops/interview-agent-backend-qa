@@ -8,8 +8,10 @@ const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const {
+  applyAdminListRange,
   buildAdminClientHierarchyMaps,
   countClientDeleteBlockers,
+  parseAdminListRange,
   rejectChildClientForAdminBilling,
   withAdminClientHierarchyMetadata,
 } = require('../../services/admin/adminHelpers');
@@ -18,11 +20,15 @@ const { ensureUserIdAndInvite } = require('../../services/users/userProvisioning
 const router = express.Router();
 
 // List all clients
-router.get('/clients', requireAuth, requireAdmin, async (_req, res) => {
-  const { data, error } = await supabaseAdmin
+router.get('/clients', requireAuth, requireAdmin, async (req, res) => {
+  // Unpaginated by default so existing callers are unaffected; ?limit= and ?offset=
+  // bound the response for callers that want it.
+  const range = parseAdminListRange(req.query)
+  if (range.invalid) return res.status(400).json({ error: `invalid_${range.invalid}` })
+  const { data, error } = await applyAdminListRange(supabaseAdmin
     .from('clients')
     .select('id,name,email,client_admin_name,created_at,plan_tier,billing_status,manual_active_override,access_override_mode,candidate_assistance_contact,stripe_customer_id,stripe_subscription_id,subscription_status,current_term_end,cancel_at_term_end,billing_interval,contract_start_at,contract_end_at,auto_renew,parent_client_id,entity_label,archived_at,archived_reason,archived_by_user_id')
-    .order('created_at', { ascending: false })
+    .order('created_at', { ascending: false }), range)
   if (error) return res.status(500).json({ error: 'list_clients_failed', detail: error.message })
   const items = data || []
   const hierarchyMaps = buildAdminClientHierarchyMaps(items)

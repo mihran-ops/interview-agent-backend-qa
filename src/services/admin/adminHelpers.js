@@ -5,6 +5,33 @@
 const { requireParentClient } = require('../clientBillingScope');
 const { supabaseAdmin } = require('../../clients/supabase');
 
+const MAX_ADMIN_PAGE_SIZE = 500
+
+// Reads limit/offset off a request. `applied` is false when the caller asked for no
+// limit, in which case the query is left unpaginated: these endpoints have always
+// returned every row, and changing that silently would truncate an admin's view.
+function parseAdminListRange(query = {}) {
+  const rawLimit = query?.limit
+  if (rawLimit === undefined || rawLimit === null || String(rawLimit).trim() === '') {
+    return { applied: false, limit: null, offset: 0 }
+  }
+  const limit = Number.parseInt(String(rawLimit), 10)
+  if (!Number.isInteger(limit) || limit < 1) {
+    return { applied: false, limit: null, offset: 0, invalid: 'limit' }
+  }
+  const offset = Number.parseInt(String(query?.offset ?? '0'), 10)
+  if (!Number.isInteger(offset) || offset < 0) {
+    return { applied: false, limit: null, offset: 0, invalid: 'offset' }
+  }
+  return { applied: true, limit: Math.min(limit, MAX_ADMIN_PAGE_SIZE), offset }
+}
+
+// Applies the range to a Supabase query builder, or returns it untouched.
+function applyAdminListRange(builder, range) {
+  if (!range?.applied) return builder
+  return builder.range(range.offset, range.offset + range.limit - 1)
+}
+
 function trimNullableString(value) {
   const text = String(value ?? '').trim()
   return text || null
@@ -115,11 +142,17 @@ async function countClientDeleteBlockers(clientId) {
     { key: 'client_plan_settings', table: 'client_plan_settings', column: 'client_id' }
   ]
 
-  for (const check of checks) {
-    const { count, error } = await supabaseAdmin
-      .from(check.table)
-      .select('*', { count: 'exact', head: true })
-      .eq(check.column, clientId)
+  // The eight counts are independent, so they run together rather than as eight
+  // sequential round-trips before an admin can delete a client. Results are collected
+  // in the order of `checks` so the blockers, warnings and errors read the same as
+  // they did when this looped.
+  const results = await Promise.all(checks.map((check) => supabaseAdmin
+    .from(check.table)
+    .select('*', { count: 'exact', head: true })
+    .eq(check.column, clientId)))
+
+  for (const [index, check] of checks.entries()) {
+    const { count, error } = results[index]
 
     if (error) {
       const checkResult = {
@@ -183,12 +216,15 @@ function normalizeAdminJsonObject(value, fieldName, fallback) {
 
 
 module.exports = {
+  MAX_ADMIN_PAGE_SIZE,
+  applyAdminListRange,
   buildAdminClientHierarchyMaps,
   cleanAdminUserEmail,
   countClientDeleteBlockers,
   isUnavailableRelationError,
   loadTopLevelParentClient,
   normalizeAdminJsonObject,
+  parseAdminListRange,
   rejectChildClientForAdminBilling,
   sendAdminError,
   trimNullableString,

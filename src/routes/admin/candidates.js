@@ -8,6 +8,7 @@ const { isInterviewRecoveryCoreEmailEnabled, isInterviewRecoveryCoreEnabled } = 
 const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
+const { applyAdminListRange, parseAdminListRange } = require('../../services/admin/adminHelpers');
 
 const router = express.Router();
 
@@ -38,6 +39,10 @@ router.get('/candidates', requireAuth, requireAdmin, async (req, res) => {
       entityScope = resolved;
     }
 
+    // Unpaginated by default so existing callers are unaffected; ?limit= and
+    // ?offset= bound the response for callers that want it.
+    const range = parseAdminListRange(req.query);
+    if (range.invalid) return res.status(400).json({ error: `invalid_${range.invalid}` });
     let cq = supabaseAdmin
       .from('candidates')
       .select('id,created_at,client_id,role_id,name,email,status,interview_status,resume_url,analysis_summary,candidate_id,first_name,last_name')
@@ -46,6 +51,7 @@ router.get('/candidates', requireAuth, requireAdmin, async (req, res) => {
     else cq = cq.in('client_id', scopedClientIds);
 
     if (role_id) cq = cq.eq('role_id', role_id);
+    cq = applyAdminListRange(cq, range);
 
     const { data: cands, error: cErr } = await cq;
     if (cErr) {
