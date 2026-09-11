@@ -924,8 +924,7 @@ app.post('/clients/billing/portal-session', requireAuth, withClientScope, async 
     const stripeCustomerId = String(client.stripe_customer_id || '').trim()
     if (!stripeCustomerId) return res.status(400).json({ error: 'missing_stripe_customer' })
 
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
     const returnParams = new URLSearchParams({
       client_id: clientId,
       tab
@@ -1001,8 +1000,7 @@ app.post('/clients/billing/additional-interviews/checkout-session', requireAuth,
       return res.status(500).json({ error: 'create_role_interview_purchase_failed', detail: pendingPurchaseErr.message })
     }
 
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
 
     let stripeCustomerId = String(billingClient.stripe_customer_id || '').trim()
     if (stripeCustomerId) {
@@ -1265,8 +1263,7 @@ app.post('/clients/roles/checkout-session', requireAuth, withClientScope, roleCh
       })
     }
 
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
 
     let stripeCustomerId = String(billingClient.stripe_customer_id || '').trim()
     if (stripeCustomerId) {
@@ -1921,8 +1918,7 @@ async function processContractRenewals(context = {}) {
     try {
       const stripeKey = String(process.env.STRIPE_SECRET_KEY || '')
       if (stripeKey) {
-        const Stripe = require('stripe')
-        stripe = new Stripe(stripeKey)
+        stripe = require('./lib/stripeClient')
       }
     } catch (_) {}
 
@@ -3461,8 +3457,7 @@ adminRouter.patch('/clients/:id/auto-renew', requireAuth, requireAdmin, async (r
   const isAnnual = billingInterval === 'annual'
   if (isAnnual || !isMonthly) {
     try {
-      const Stripe = require('stripe')
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+      const stripe = require('./lib/stripeClient')
       await stripe.subscriptions.update(client.stripe_subscription_id, { cancel_at_period_end: autoRenew !== true })
     } catch (e) {
       return res.status(500).json({ error: 'update_client_failed', detail: e?.message || 'stripe_update_failed' })
@@ -3568,8 +3563,7 @@ adminRouter.post('/clients/:id/cancel-contract', requireAuth, requireAdmin, asyn
   }
 
   try {
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
     let stripeInvoiceId = null
 
     if (finalInvoiceAmount && finalInvoiceAmount > 0) {
@@ -3890,8 +3884,7 @@ adminRouter.post('/clients/:id/billing/checkout-session', requireAuth, requireAd
   }
 
   try {
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
     let stripeCustomerId = client.stripe_customer_id || null
 
     if (!stripeCustomerId) {
@@ -4074,8 +4067,7 @@ adminRouter.post('/clients/:id/subscription-invoice', requireAuth, requireAdmin,
   if (!billingCustomer) return res.status(400).json({ error: 'missing_billing_customer' })
 
   try {
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
     const candidateStripeCustomerIds = []
     for (const row of billingCustomerList) {
       const id = String(row?.stripe_customer_id || '').trim()
@@ -6121,8 +6113,7 @@ app.get('/checkout/subscription-success', async (req, res) => {
   }
 
   try {
-    const Stripe = require('stripe')
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
+    const stripe = require('./lib/stripeClient')
     const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['subscription'] })
     const pickStripeId = (value) => {
       if (!value) return null

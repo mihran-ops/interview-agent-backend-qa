@@ -11,6 +11,9 @@ const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseCli
 const authPath = path.join(__dirname, '..', 'src', 'middleware', 'auth.js')
 const generateRubricPath = path.join(__dirname, '..', 'generateRubric.js')
 const stripePath = require.resolve('stripe')
+// The app now takes its Stripe client from lib/stripeClient.js, which caches the
+// constructed instance; it must be dropped too so each build sees this test's stub.
+const stripeClientPath = path.join(__dirname, '..', 'lib', 'stripeClient.js')
 const dotenvPath = require.resolve('dotenv')
 
 const ROUTE_STUBS = [
@@ -298,6 +301,7 @@ function buildApp(db) {
     authPath,
     generateRubricPath,
     stripePath,
+    stripeClientPath,
     dotenvPath,
     ...ROUTE_STUBS.map((relative) => path.join(__dirname, '..', relative))
   ]) {
