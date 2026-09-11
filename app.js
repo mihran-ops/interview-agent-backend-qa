@@ -6821,17 +6821,33 @@ if (SENTRY_ENABLED) {
 }
 
 // ---------- Error handler ----------
-app.use(function (err, req, res, next) {
-  const status = err.status || 500
-  const msg = err.message || 'Server error'
-  res.status(status).json({ error: msg })
+// Client-attributable errors keep their message; anything else answers generically,
+// because err.message here carries database and vendor error text straight through
+// to the caller. The detail goes to the log instead.
+app.use(function (err, req, res, _next) {
+  const status = Number(err?.status) || 500
+  const isClientError = status >= 400 && status < 500
+  if (!isClientError) {
+    console.error('[error-handler] unhandled route error', {
+      request_id: req?.request_id || null,
+      method: req?.method || null,
+      path: req?.originalUrl || null,
+      message: err?.message || String(err),
+      stack: err?.stack || null
+    })
+    if (SENTRY_ENABLED) { try { Sentry.captureException(err) } catch {} }
+  }
+  res.status(status).json({ error: isClientError ? (err?.message || 'Request error') : 'Server error' })
 })
 
 // ---------- Start ----------
 // Bind a port only when app.js is the entry point, so tests can require it safely.
 const PORT = process.env.PORT || 3000
+const SHUTDOWN_GRACE_MS = Number(process.env.SHUTDOWN_GRACE_MS || 10000)
 
 let server = null
+let shuttingDown = false
+
 function start() {
   if (server) return server
   server = app.listen(PORT, () => {
@@ -6845,10 +6861,66 @@ function start() {
   return server
 }
 
+// Stop accepting new connections, let in-flight requests finish, then exit. Without
+// this a deploy kills the process mid-request and loses whatever it was doing.
+function shutdown(signal, exitCode = 0) {
+  if (shuttingDown) return
+  shuttingDown = true
+  console.log(`[shutdown] ${signal} received; draining`)
+
+  const finish = (code) => {
+    try {
+      supportVoiceGateway.finalizeAll()
+    } catch (e) {
+      console.error('[shutdown] voice gateway teardown failed', e?.message || e)
+    }
+    process.exit(code)
+  }
+
+  // A stuck connection must not hold the process past the grace window.
+  const forced = setTimeout(() => {
+    console.error('[shutdown] grace period elapsed; forcing exit')
+    finish(exitCode || 1)
+  }, SHUTDOWN_GRACE_MS)
+  if (typeof forced.unref === 'function') forced.unref()
+
+  if (!server) return finish(exitCode)
+  server.close((err) => {
+    clearTimeout(forced)
+    if (err) {
+      console.error('[shutdown] server close failed', err?.message || err)
+      return finish(exitCode || 1)
+    }
+    finish(exitCode)
+  })
+}
+
+// The two failure modes that previously terminated the process with nothing but a
+// default stack trace. Both still terminate: continuing past them would leave the
+// service running on state nobody can reason about.
+function reportFatal(kind, error) {
+  console.error(`[${kind}]`, {
+    message: error?.message || String(error),
+    stack: error?.stack || null
+  })
+  if (SENTRY_ENABLED) { try { Sentry.captureException(error) } catch {} }
+}
+
 if (require.main === module) {
+  process.on('unhandledRejection', (reason) => {
+    reportFatal('unhandledRejection', reason)
+    shutdown('unhandledRejection', 1)
+  })
+  process.on('uncaughtException', (error) => {
+    reportFatal('uncaughtException', error)
+    shutdown('uncaughtException', 1)
+  })
+  process.on('SIGTERM', () => shutdown('SIGTERM'))
+  process.on('SIGINT', () => shutdown('SIGINT'))
   start()
 }
 
 app.supportVoiceGateway = supportVoiceGateway
 app.start = start
+app.shutdown = shutdown
 module.exports = app
