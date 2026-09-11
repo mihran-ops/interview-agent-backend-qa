@@ -7,6 +7,7 @@
 
 const Sentry = require('@sentry/node');
 const crypto = require('node:crypto');
+const { TIMEOUT_PROFILES } = require('../../clients/http');
 const { supabaseAdmin: defaultSupabaseAdmin } = require('../../clients/supabase');
 const { analyzeInterviewTranscriptById } = require('../../../scripts/backfillInterviews.js');
 const { generateInterviewAnalysisV2 } = require('../interviewAnalysisV2');
@@ -1806,7 +1807,9 @@ async function putJsonToStorage(bucket, pathName, jsonOrUrl) {
   let contentType = 'application/json';
 
   if (typeof jsonOrUrl === 'string' && /^https?:\/\//i.test(jsonOrUrl)) {
-    const r = await fetch(jsonOrUrl);
+    const r = await fetch(jsonOrUrl, {
+      signal: AbortSignal.timeout(TIMEOUT_PROFILES.read.requestMs),
+    });
     if (!r.ok) throw new Error(`fetch ${jsonOrUrl} failed: ${r.status}`);
     const ct = r.headers.get('content-type') || '';
     contentType = ct || contentType;

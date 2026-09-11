@@ -74,8 +74,7 @@ function shouldRunLiveCheck(context, flagName) {
 
 function getFetchImpl(context) {
   if (typeof context?.fetchImpl === 'function') return context.fetchImpl;
-  if (typeof fetch === 'function') return fetch;
-  return require('node-fetch');
+  return fetch;
 }
 
 function safeErrorMessage(error, fallback = 'Live check failed.') {

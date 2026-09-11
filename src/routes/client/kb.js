@@ -2,7 +2,9 @@
 'use strict';
 
 const express = require('express');
-const axios = require('axios');
+const { createHttpClient } = require('../../clients/http');
+
+const kbHttp = createHttpClient({ name: 'kb' });
 const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const {
@@ -71,11 +73,12 @@ router.post('/upload', requireAuth, withClientScope, async (req, res) => {
       return res.status(500).json({ error: 'KB service not configured' });
     }
 
-    const resp = await axios.post(
-      `${kbServiceUrl}/documents`,
-      { url: document_url, name: document_name, tags },
-      { headers: { Authorization: `Bearer ${kbApiKey}` } }
-    );
+    const resp = await kbHttp.requestJson(`${kbServiceUrl}/documents`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${kbApiKey}` },
+      body: { url: document_url, name: document_name, tags },
+      timeout: 'mutation',
+    });
 
     const docId = resp?.data?.id;
     const docUrl = resp?.data?.url;

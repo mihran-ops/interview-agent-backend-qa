@@ -1,63 +1,23 @@
 'use strict';
 
-const { Agent, request: undiciRequest } = require('undici');
+const { request: undiciRequest } = require('undici');
+
+const {
+  MAX_RESPONSE_BYTES,
+  MAX_RETRY_DELAY_MS,
+  RETRYABLE_HTTP_STATUSES,
+  RETRYABLE_NETWORK_CODES,
+  RETRY_BASE_DELAY_MS,
+  RETRY_SAFETY,
+  TIMEOUT_PROFILES,
+  dispatcherFor,
+} = require('./http');
 
 const DEFAULT_TAVUS_BASE_URL = 'https://tavusapi.com/v2';
-const MAX_RESPONSE_BYTES = 1024 * 1024;
-const MAX_RETRY_DELAY_MS = 1000;
-const RETRY_BASE_DELAY_MS = 100;
-const RETRYABLE_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
-const RETRYABLE_NETWORK_CODES = new Set([
-  'ABORT_ERR',
-  'ECONNRESET',
-  'ECONNREFUSED',
-  'EAI_AGAIN',
-  'ENETDOWN',
-  'ENETUNREACH',
-  'ENOTFOUND',
-  'ETIMEDOUT',
-  'UND_ERR_ABORTED',
-  'UND_ERR_BODY_TIMEOUT',
-  'UND_ERR_CONNECT_TIMEOUT',
-  'UND_ERR_HEADERS_TIMEOUT',
-  'UND_ERR_SOCKET',
-]);
 
-const RETRY_SAFETY = Object.freeze({
-  SAFE_TO_RETRY: 'SAFE_TO_RETRY',
-  NOT_SAFE_TO_RETRY: 'NOT_SAFE_TO_RETRY',
-});
-
-const TIMEOUTS = Object.freeze({
-  read: Object.freeze({
-    requestMs: 8000,
-    connectMs: 3000,
-    headersMs: 5000,
-    bodyMs: 5000,
-    operationMs: null,
-  }),
-  health_read: Object.freeze({
-    requestMs: 2000,
-    connectMs: 1000,
-    headersMs: 1500,
-    bodyMs: 1500,
-    operationMs: 4500,
-  }),
-  mutation: Object.freeze({
-    requestMs: 12000,
-    connectMs: 3000,
-    headersMs: 8000,
-    bodyMs: 8000,
-    operationMs: null,
-  }),
-  long_provider_mutation: Object.freeze({
-    requestMs: 20000,
-    connectMs: 4000,
-    headersMs: 15000,
-    bodyMs: 15000,
-    operationMs: null,
-  }),
-});
+// Tavus uses the shared profiles unchanged; the operation catalogue below is what
+// makes this client Tavus-specific.
+const TIMEOUTS = TIMEOUT_PROFILES;
 
 const OPERATION_CONFIG = Object.freeze({
   create_conversation: Object.freeze({ method: 'POST', path: '/conversations', timeout: 'mutation', retrySafety: RETRY_SAFETY.NOT_SAFE_TO_RETRY, maxAttempts: 1 }),
@@ -77,19 +37,6 @@ const OPERATION_CONFIG = Object.freeze({
   create_pronunciation_dictionary: Object.freeze({ method: 'POST', path: '/pronunciation-dictionaries', timeout: 'mutation', retrySafety: RETRY_SAFETY.NOT_SAFE_TO_RETRY, maxAttempts: 1 }),
   update_pronunciation_dictionary: Object.freeze({ method: 'PATCH', path: '/pronunciation-dictionaries/:dictionaryId', timeout: 'mutation', retrySafety: RETRY_SAFETY.NOT_SAFE_TO_RETRY, maxAttempts: 1 }),
 });
-
-const dispatcherCache = new Map();
-
-function dispatcherFor(connectMs) {
-  if (!dispatcherCache.has(connectMs)) {
-    dispatcherCache.set(connectMs, new Agent({
-      connect: { timeout: connectMs },
-      headersTimeout: connectMs,
-      bodyTimeout: connectMs,
-    }));
-  }
-  return dispatcherCache.get(connectMs);
-}
 
 function clampNumber(value, fallback, minimum = 1) {
   const number = Number(value);

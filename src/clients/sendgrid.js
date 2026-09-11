@@ -3,12 +3,20 @@ const fs = require('fs')
 const path = require('path')
 const sg = require('@sendgrid/mail')
 
+const { TIMEOUT_PROFILES } = require('./http')
+
 const API_KEY = process.env.SENDGRID_API_KEY
 if (!API_KEY) {
   // Don't crash app in prod if not configured; calling code can handle
   console.warn('[mailer] SENDGRID_API_KEY not set; emails will be skipped')
 } else {
   sg.setApiKey(API_KEY)
+}
+// Without this a hung SendGrid request holds the caller open indefinitely.
+try {
+  sg.client.setDefaultRequest('timeout', TIMEOUT_PROFILES.mutation.requestMs)
+} catch (e) {
+  console.warn('[mailer] could not set SendGrid request timeout:', e?.message || e)
 }
 
 const FROM = process.env.SENDGRID_FROM || 'no-reply@yourdomain.com'

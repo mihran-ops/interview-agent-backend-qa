@@ -89,8 +89,7 @@ function safeOpenAIExceptionMessage(error) {
 
 function getFetchImpl(context) {
   if (typeof context?.fetchImpl === 'function') return context.fetchImpl;
-  if (typeof fetch === 'function') return fetch;
-  return require('node-fetch');
+  return fetch;
 }
 
 function sumOpenAIUsage(data) {

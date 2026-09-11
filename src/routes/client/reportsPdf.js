@@ -3,6 +3,7 @@ const { htmlToPdf } = require('../../render/pdfRenderer');
 const { buildCandidateReportHtml } = require('../../render/candidateReport');
 const Sentry = require('@sentry/node');
 const { supabaseAdmin } = require('../../clients/supabase');
+const { TIMEOUT_PROFILES } = require('../../clients/http');
 const {
   normalizePrimitiveString,
   normalizeUuid,
@@ -487,7 +488,10 @@ async function handleGenerate(req, res) {
       try {
         const port = process.env.PORT || 10000;
         const url = `http://localhost:${port}/dashboard/rows?client_id=${encodeURIComponent(clientId)}&candidate_id=${encodeURIComponent(candidateId)}`;
-        const resp = await fetch(url, { method: 'GET' });
+        const resp = await fetch(url, {
+          method: 'GET',
+          signal: AbortSignal.timeout(TIMEOUT_PROFILES.read.requestMs),
+        });
         if (!resp || !resp.ok) return null;
         const json = await resp.json().catch(() => null);
         if (!json) return null;

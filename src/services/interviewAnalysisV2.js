@@ -2,6 +2,8 @@
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_INTERVIEW_ANALYSIS_V2_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const { TIMEOUT_PROFILES } = require('../clients/http');
+const OPENAI_REQUEST_TIMEOUT_MS = TIMEOUT_PROFILES.model_completion.requestMs;
 const { excludeWarmupFromTranscript } = require('./warmupExclusion');
 
 const SCORE_KEYS = [
@@ -184,8 +186,12 @@ async function generateInterviewAnalysisV2(input = {}) {
   if (!transcript) throw new Error('missing_transcript');
   if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY missing');
 
-  const fetchImpl = typeof fetch === 'function' ? fetch : require('node-fetch');
-  const response = await fetchImpl('https://api.openai.com/v1/chat/completions', {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OPENAI_REQUEST_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch('https://api.openai.com/v1/chat/completions', {
+    signal: controller.signal,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -201,6 +207,9 @@ async function generateInterviewAnalysisV2(input = {}) {
       response_format: { type: 'json_object' }
     })
   });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');

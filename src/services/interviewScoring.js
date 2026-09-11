@@ -2,6 +2,8 @@
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const { TIMEOUT_PROFILES } = require('../clients/http');
+const OPENAI_REQUEST_TIMEOUT_MS = TIMEOUT_PROFILES.model_completion.requestMs;
 const ROLE_RUBRIC_SCORING_VERSION = 'role_rubric_v2';
 const INSUFFICIENT_SUMMARY = 'Interview ended before any substantive responses were recorded.\nEvidence strength: 0%\nAI-aided interview risk: Low';
 const { classifyTranscriptCandidateEvidence } = require('./interviewUtteranceClassifier');
@@ -230,7 +232,6 @@ async function scoreInterview({ transcriptText, jdText, roleContext, perceptionS
     throw new Error('OPENAI_API_KEY missing');
   }
 
-  const fetchImpl = typeof fetch === 'function' ? fetch : require('node-fetch');
 
   const transcript = excludeWarmupFromTranscript(transcriptText).slice(0, 16000);
   const jdGrounding = typeof jdText === 'string' && jdText.trim()
@@ -325,7 +326,12 @@ BEGIN UNTRUSTED TRANSCRIPT DATA
 ${JSON.stringify(transcript)}
 END UNTRUSTED TRANSCRIPT DATA`;
 
-  const resp = await fetchImpl('https://api.openai.com/v1/chat/completions', {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OPENAI_REQUEST_TIMEOUT_MS);
+  let resp;
+  try {
+    resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    signal: controller.signal,
     method: 'POST',
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
@@ -344,6 +350,9 @@ END UNTRUSTED TRANSCRIPT DATA`;
       response_format: { type: 'json_object' }
     })
   });
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!resp.ok) {
     const txt = await resp.text().catch(() => '');
