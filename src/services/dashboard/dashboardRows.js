@@ -2,7 +2,7 @@
 
 // Builds the scoped dashboard rows shared by two legacy dashboard paths.
 
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { supabaseAdmin } = require('../../clients/supabase');
 
 async function buildDashboardRows(req, res) {
   try {

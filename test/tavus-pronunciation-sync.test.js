@@ -3,8 +3,8 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { DENTAL_PRONUNCIATION_SEED } = require('../src/data/pronunciation/dentalSeed');
-const { TavusProviderError } = require('../src/lib/tavusHttpClient');
-const { assertQaOnly, classifySyncFailure, compileResolvedDictionary, synchronizeTavusPronunciation } = require('../src/lib/tavusPronunciationSync');
+const { TavusProviderError } = require('../src/clients/tavus');
+const { assertQaOnly, classifySyncFailure, compileResolvedDictionary, synchronizeTavusPronunciation } = require('../src/services/tavusPronunciationSync');
 
 function harness(options = {}) {
   const calls = [];

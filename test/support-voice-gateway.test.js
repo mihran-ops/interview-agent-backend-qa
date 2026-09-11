@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const http = require('node:http');
 const test = require('node:test');
-const { createSupportVoiceGateway, isConfigurationReady, safeIp } = require('../src/lib/supportVoiceGateway');
+const { createSupportVoiceGateway, isConfigurationReady, safeIp } = require('../src/services/supportVoiceGateway');
 const { createBacking, createMemorySupportVoiceStore } = require('./helpers/supportVoiceTestStore');
 
 const ORIGIN = 'https://alphasourceai-com.onrender.com';

@@ -1,7 +1,7 @@
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
-const { scoreInterview } = require('../src/lib/interviewScoring');
+const { scoreInterview } = require('../src/services/interviewScoring');
 
 const QA_PROJECT_REF = 'yjjxzxoghlpguquknyso';
 const CALIBRATION_SET = process.env.QA_SCORING_CALIBRATION_SET || 'high_velocity_sales_closer_2026_09_03';

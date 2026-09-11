@@ -9,19 +9,19 @@ const {
   assertSmsProviderResult,
   deriveSmsIdempotencyIdentity,
   safeSmsTelemetry,
-} = require('../src/lib/smsProviderContract');
-const { analyzeSmsSegments, buildOtpSmsMessage } = require('../src/lib/smsMessage');
-const { FAKE_SMS_MODES, createFakeSmsProvider } = require('../src/lib/smsFakeProvider');
+} = require('../src/services/smsProviderContract');
+const { analyzeSmsSegments, buildOtpSmsMessage } = require('../src/services/smsMessage');
+const { FAKE_SMS_MODES, createFakeSmsProvider } = require('../src/services/smsFakeProvider');
 const {
   applyDeliveryStatusFixture,
   normalizeDeliveryCallbackFixture,
-} = require('../src/lib/smsDeliveryCallbackContract');
+} = require('../src/services/smsDeliveryCallbackContract');
 const {
   networkDestinationAllowed,
   orchestrateOtpSmsDelivery,
   qaDestinationAllowed,
   validateCommittedChallenge,
-} = require('../src/lib/smsDeliveryOrchestrator');
+} = require('../src/services/smsDeliveryOrchestrator');
 
 const CHALLENGE_ID = '81000000-0000-4000-8000-000000000001';
 const SECOND_CHALLENGE_ID = '81000000-0000-4000-8000-000000000002';
@@ -323,10 +323,10 @@ test('bounded telemetry contains no OTP, E.164, body, message ID, idempotency id
 });
 
 test('fake-provider implementation has no network dependency or provider-specific default', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'smsFakeProvider.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'smsFakeProvider.js'), 'utf8');
   assert.doesNotMatch(source, /axios|node-fetch|https|http\.request|fetch\s*\(/);
   assert.doesNotMatch(source, /telnyx|signalwire|twilio/i);
-  const orchestrator = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'smsDeliveryOrchestrator.js'), 'utf8');
+  const orchestrator = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'smsDeliveryOrchestrator.js'), 'utf8');
   assert.doesNotMatch(orchestrator, /\.from\(['"]otp_challenges|private_auth\.otp_challenges|update\s+private_auth/i);
 });
 

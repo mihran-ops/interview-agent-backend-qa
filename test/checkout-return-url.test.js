@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { test } = require('node:test')
 
-const urlConfigPath = path.join(__dirname, '..', 'config', 'urlConfig.js')
+const urlConfigPath = path.join(__dirname, '..', 'src', 'config', 'urlConfig.js')
 
 function loadUrlConfigWithEnv(overrides = {}) {
   const original = {}

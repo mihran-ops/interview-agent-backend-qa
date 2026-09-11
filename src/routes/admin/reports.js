@@ -3,8 +3,8 @@
 // Admin-triggered report generation. Mounted on the admin router.
 
 const express = require('express');
-const { normalizeUuid } = require('../../lib/strictRequestValidation');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { normalizeUuid } = require('../../services/strictRequestValidation');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 
@@ -66,7 +66,7 @@ router.post('/reports/generate', requireAuth, requireAdmin, async (req, res) => 
 
     let reportsPdfRoutes;
     try {
-      reportsPdfRoutes = require('../../../routes/reportsPdf');
+      reportsPdfRoutes = require('../client/reportsPdf');
     } catch (e) {
       console.error('[admin/reports/generate] require reportsPdf failed', { request_id, error: e?.message || e });
       return res.status(500).json({

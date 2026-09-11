@@ -9,7 +9,7 @@ const {
   ResumeUploadError,
   inspectResumeFile,
   uploadResumeObject
-} = require('../src/lib/resumeUpload');
+} = require('../src/services/resumeUpload');
 
 const REPORTLAB_XREF_PDF_BASE64 = `
 JVBERi0xLjQKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSCj4+

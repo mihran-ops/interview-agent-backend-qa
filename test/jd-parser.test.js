@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const { parseBufferToText } = require('../utils/jdParser');
+const { parseBufferToText } = require('../src/render/jdParser');
 
 test('PDF JD parser preserves legitimate repeated letters in the regression fixture', async () => {
   const fixturePath = path.join(__dirname, 'fixtures', 'jd-parser-repeated-letters.pdf');

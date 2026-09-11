@@ -9,9 +9,9 @@ const ROOT = path.resolve(__dirname, '..');
 const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), 'utf8');
 const migration = read('supabase', 'migrations', '20260721160715_interview_recovery_core.sql');
 const phaseBMigration = read('supabase', 'migrations', '20260717120000_candidate_incident_phase_b.sql');
-const recoveryRoute = read('routes', 'interviewRecovery.js');
-const startRoute = read('routes', 'createTavusInterview.js');
-const reportRoute = read('routes', 'reportsPdf.js');
+const recoveryRoute = read('src', 'routes', 'admin', 'interviewRecovery.js');
+const startRoute = read('src', 'routes', 'public', 'createTavusInterview.js');
+const reportRoute = read('src', 'routes', 'client', 'reportsPdf.js');
 const app = read('app.js');
 const adminCandidates = read('src', 'routes', 'admin', 'candidates.js');
 

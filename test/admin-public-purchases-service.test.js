@@ -12,7 +12,7 @@ const {
   resendPublicPurchaseSetupEmail,
   resendPublicPurchaseWelcomeEmail,
   safePublicPurchaseActionErrorBody,
-} = require('../src/lib/adminPublicPurchasesService');
+} = require('../src/services/adminPublicPurchasesService');
 
 class FakeQuery {
   constructor(db, table) {

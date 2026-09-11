@@ -10,7 +10,7 @@ const {
   validateBrowserEvent,
   validatePreAttestationProviderEvent,
   validateSessionUpdated,
-} = require('../src/lib/supportVoiceProtocol');
+} = require('../src/services/supportVoiceProtocol');
 
 const prompt = 'static support prompt';
 

@@ -10,9 +10,9 @@ function read(relative) {
 }
 
 test('candidate routes keep SMS owner-gated, consent-bound, and explicitly fallback-safe', () => {
-  const submit = read('routes/candidateSubmit.js');
-  const resend = read('routes/verifyOtp.js');
-  const delivery = read('src/lib/candidateSmsDelivery.js');
+  const submit = read('src/routes/public/candidateSubmit.js');
+  const resend = read('src/routes/public/verifyOtp.js');
+  const delivery = read('src/services/candidateSmsDelivery.js');
   for (const required of [
     'SMS_CANDIDATE_UI_ENABLED',
     'SMS_ENABLED',
@@ -31,7 +31,7 @@ test('candidate routes keep SMS owner-gated, consent-bound, and explicitly fallb
 });
 
 test('QA/production and fake-provider safeguards come only from trusted environment and server controls', () => {
-  const delivery = read('src/lib/candidateSmsDelivery.js');
+  const delivery = read('src/services/candidateSmsDelivery.js');
   assert.match(delivery, /provider === 'fake'.*environment === 'local'.*NODE_ENV/s);
   assert.match(delivery, /config\.provider === 'telnyx'[\s\S]*createSmsProductionControls/);
   assert.match(delivery, /configuredAdapter\.network === 'https' && \['qa', 'production'\]\.includes\(config\.environment\)/);

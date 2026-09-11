@@ -11,8 +11,8 @@ const {
   decodeTelemetryAuthorization,
   diagnosticDedupeKey,
   validateTelemetryPayload,
-} = require('../src/lib/interviewReliabilityDiagnostics');
-const { createClientTelemetryHandler, isIdempotentEndState } = require('../routes/tavus');
+} = require('../src/services/interviewReliabilityDiagnostics');
+const { createClientTelemetryHandler, isIdempotentEndState } = require('../src/routes/public/tavus');
 
 const BASE_PAYLOAD = Object.freeze({
   interview_id: '00000000-0000-4000-8000-000000000001',

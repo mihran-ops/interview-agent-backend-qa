@@ -7,8 +7,8 @@ const { nodeProfilingIntegration } = require('@sentry/profiling-node');
 const {
   getTavusWebhookAuthReadiness,
   redactTavusWebhookAuth,
-} = require('./src/lib/tavusWebhookAuth');
-const { redactOtpLaunchTelemetry } = require('./src/lib/otpLaunchTelemetry');
+} = require('./src/services/tavusWebhookAuth');
+const { redactOtpLaunchTelemetry } = require('./src/services/otpLaunchTelemetry');
 const SENTRY_ENABLED = process.env.SENTRY_ENABLED === '1' && !!process.env.SENTRY_DSN;
 if (SENTRY_ENABLED) {
   const integrations = [];
@@ -65,19 +65,19 @@ const express = require('express')
 const cors = require('cors')
 const crypto = require('crypto')
 const path = require('path')
-const { supabaseAdmin } = require('./src/lib/supabaseClient')
-const dashboardRouter = require('./routes/dashboard')
-const rolesRouter = require('./routes/roles')
-const automationRouter = require('./src/routes/automation')
+const { supabaseAdmin } = require('./src/clients/supabase')
+const dashboardRouter = require('./src/routes/client/dashboardRouter')
+const rolesRouter = require('./src/routes/client/roles')
+const automationRouter = require('./src/routes/automation/index')
 const { requireAuth, withClientScope } = require('./src/middleware/auth')
-const { createSupportVoiceGateway } = require('./src/lib/supportVoiceGateway')
-const { isInterviewRecoveryCoreEnabled, isInterviewRecoveryCoreEmailEnabled } = require('./src/lib/interviewAttemptService')
+const { createSupportVoiceGateway } = require('./src/services/supportVoiceGateway')
+const { isInterviewRecoveryCoreEnabled, isInterviewRecoveryCoreEmailEnabled } = require('./src/services/interviewAttemptService')
 const {
   frontendUrl: FRONTEND_URL,
   interviewAppBase: INTERVIEW_APP_BASE,
   corsDefaultOrigins,
   isInterviewPrettyLinkHost,
-} = require('./config/urlConfig')
+} = require('./src/config/urlConfig')
 const app = express()
 const configuredTrustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1)
 app.set('trust proxy', Number.isInteger(configuredTrustProxyHops) && configuredTrustProxyHops >= 0
@@ -150,15 +150,15 @@ app.use(cors({
   exposedHeaders: ['Content-Range', 'Range-Unit']
 }))
 
-app.use('/webhook/stripe', express.raw({ type: 'application/json' }), require('./routes/webhookStripe'))
-app.use('/webhook/telnyx/sms', express.raw({ type: 'application/json', limit: '256kb' }), require('./routes/webhookTelnyxSms'))
+app.use('/webhook/stripe', express.raw({ type: 'application/json' }), require('./src/routes/webhooks/stripe'))
+app.use('/webhook/telnyx/sms', express.raw({ type: 'application/json', limit: '256kb' }), require('./src/routes/webhooks/telnyx'))
 app.use('/webhook/sendgrid', express.json({
   limit: '2mb',
   verify: (req, _res, buffer) => {
     req.raw_body = Buffer.from(buffer);
   }
-}), require('./routes/webhookSendgrid'))
-app.use('/webhook', require('./routes/webhook'))
+}), require('./src/routes/webhooks/sendgrid'))
+app.use('/webhook', require('./src/routes/webhooks/tavus'))
 
 app.use(express.json({ limit: '10mb' }))
 
@@ -227,16 +227,16 @@ app.use((req, _res, next) => {
 // NOTE: Auth + client scoping are centralized in src/middleware/auth
 
 // ---------- Public candidate endpoints (MOUNTED) ----------
-app.use('/api/candidate/submit', require('./routes/candidateSubmit'))
-app.use('/api/candidate/verify-otp', require('./routes/verifyOtp'))
-app.use('/create-tavus-interview', require('./routes/createTavusInterview'))
-app.use('/api/accommodations', require('./routes/accommodationRequests'))
-app.use('/api/text-interview', require('./routes/textInterview'))
+app.use('/api/candidate/submit', require('./src/routes/public/candidateSubmit'))
+app.use('/api/candidate/verify-otp', require('./src/routes/public/verifyOtp'))
+app.use('/create-tavus-interview', require('./src/routes/public/createTavusInterview'))
+app.use('/api/accommodations', require('./src/routes/public/accommodationRequests'))
+app.use('/api/text-interview', require('./src/routes/public/textInterview'))
 
 // ---------- Simple test endpoint ----------
-app.use('/', require('./src/routes/client'))
+app.use('/', require('./src/routes/client/index'))
 
-const clientMembersScopedRouter = require('./routes/clientMembersScoped')
+const clientMembersScopedRouter = require('./src/routes/client/members')
 app.use('/api/client-members', clientMembersScopedRouter)
 app.use('/client-members', clientMembersScopedRouter)
 
@@ -246,11 +246,11 @@ app.use('/roles', rolesRouter)
 app.use('/api/roles', rolesRouter)
 app.use('/automation', automationRouter)
 app.use('/api/automation', automationRouter)
-app.use('/feedback', require('./routes/feedback'))
-app.use('/api/feedback', require('./routes/feedback'))
-app.use('/api/alphascreen', require('./src/routes/public/alphascreen'))
-app.use('/api/public-analytics', require('./routes/publicAnalytics'))
-app.use('/api/public-leads', require('./routes/publicLeads'))
+app.use('/feedback', require('./src/routes/client/feedback'))
+app.use('/api/feedback', require('./src/routes/client/feedback'))
+app.use('/api/alphascreen', require('./src/routes/public/alphascreen/index'))
+app.use('/api/public-analytics', require('./src/routes/public/analytics'))
+app.use('/api/public-leads', require('./src/routes/public/leads'))
 
 // ---------- Dashboard: scoped rows ----------
 // Registered after the shared router mounts above, which is where these paths
@@ -260,26 +260,26 @@ app.use('/', require('./src/routes/client/invites'))
 /* ========================= Admin guard + Admin API (with JD→Rubric→KB) ========================= */
 
 // Admin-only guard (after requireAuth)
-app.use('/internal', require('./src/routes/internal'))
+app.use('/internal', require('./src/routes/internal/index'))
 
 app.use('/checkout', require('./src/routes/public/checkoutSuccess'))
 
-app.use('/admin', require('./src/routes/admin'))
+app.use('/admin', require('./src/routes/admin/index'))
 
 /* ======================= END: Admin guard + Admin API ======================= */
 
-app.use('/kb', require('./routes/kb'))
-app.use('/tavus', require('./routes/tavus'))
-app.use('/public', require('./routes/publicInterviewStatus'))
+app.use('/kb', require('./src/routes/client/kb'))
+app.use('/tavus', require('./src/routes/public/tavus'))
+app.use('/public', require('./src/routes/public/interviewStatus'))
 try {
-  app.use('/membership-agreements', require('./src/routes/public/membershipAgreements'))
+  app.use('/membership-agreements', require('./src/routes/public/membershipAgreements/index'))
 } catch (e) {
   console.error('[mount] Failed to load src/routes/public/membershipAgreements:', e?.message || e)
 }
 
 // ---------- JD upload route (authenticated + scoped) ----------
 try {
-  app.use('/roles-upload', requireAuth, withClientScope, require('./routes/rolesUpload'))
+  app.use('/roles-upload', requireAuth, withClientScope, require('./src/routes/client/rolesUpload'))
 } catch (_) {}
 
 // ---------- Protected mounts ----------
@@ -294,7 +294,7 @@ app.use(
     }
     next()
   },
-  require('./routes/files')
+  require('./src/routes/client/files')
 )
 
 app.use(
@@ -308,12 +308,12 @@ app.use(
     }
     next()
   },
-  require('./routes/reports')
+  require('./src/routes/client/reports')
 )
 
 // ---------- Reports PDF (HTML→PDF) ----------
 try {
-  const reportsPdfRoutes = require('./routes/reportsPdf');
+  const reportsPdfRoutes = require('./src/routes/client/reportsPdf');
   app.use(
     '/reports',
     requireAuth,

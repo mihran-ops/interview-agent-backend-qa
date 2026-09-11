@@ -10,8 +10,8 @@ process.env.SUPABASE_ANON_KEY ||= 'test-anon-key';
 
 const {
   createTavusReadOnlyProvider,
-} = require('../src/lib/tavusVendorReconciliation');
-const { createInterviewRecoveryRouter } = require('../routes/interviewRecovery');
+} = require('../src/services/tavusVendorReconciliation');
+const { createInterviewRecoveryRouter } = require('../src/routes/admin/interviewRecovery');
 
 const ID = {
   candidate: '76000000-0000-4000-8000-000000000001',
@@ -387,9 +387,9 @@ function reportDb(overrides = {}) {
 }
 
 async function withHistoricalReportRouter(db, clientIds, callback) {
-  const supabasePath = require.resolve('../src/lib/supabaseClient');
+  const supabasePath = require.resolve('../src/clients/supabase');
   const authPath = require.resolve('../src/middleware/auth');
-  const routePath = require.resolve('../routes/reports');
+  const routePath = require.resolve('../src/routes/client/reports');
   const priorSupabase = require.cache[supabasePath];
   const priorAuth = require.cache[authPath];
   require.cache[supabasePath] = { id: supabasePath, filename: supabasePath, loaded: true, exports: { supabase: db } };
@@ -399,7 +399,7 @@ async function withHistoricalReportRouter(db, clientIds, callback) {
   } };
   delete require.cache[routePath];
   const app = express();
-  app.use('/reports', require('../routes/reports'));
+  app.use('/reports', require('../src/routes/client/reports'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   try { await callback(`http://127.0.0.1:${server.address().port}`); }

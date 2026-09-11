@@ -3,7 +3,7 @@ const test = require('node:test');
 const {
   DEFAULT_HEALTH_FRESHNESS_MS,
   createSupportVoiceSessionStore,
-} = require('../src/lib/supportVoiceSessionStore');
+} = require('../src/services/supportVoiceSessionStore');
 
 const SESSION_ID = 'A'.repeat(22);
 const DIGEST = 'b'.repeat(64);

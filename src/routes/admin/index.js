@@ -7,9 +7,9 @@
 // so the order between them cannot change which handler answers a request.
 
 const express = require('express');
-const { createAdminInterviewReliabilityRouter } = require('../../../routes/adminInterviewReliability');
-const { createAdminSmsMonitoringRouter } = require('../../../routes/adminSmsMonitoring');
-const { createInterviewRecoveryRouter } = require('../../../routes/interviewRecovery');
+const { createAdminInterviewReliabilityRouter } = require('./interviewReliability');
+const { createAdminSmsMonitoringRouter } = require('./smsMonitoring');
+const { createInterviewRecoveryRouter } = require('./interviewRecovery');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 
@@ -38,12 +38,12 @@ router.use(require('./members'));
 
 // Mount admin sub-routers (Billing + Accommodation Requests)
 try {
-  router.use('/billing', requireAuth, requireAdmin, require('../../../routes/adminBilling'))
+  router.use('/billing', requireAuth, requireAdmin, require('./billingRouter'))
 } catch (e) {
   console.error('[mount] Failed to load routes/adminBilling:', e?.message || e)
 }
 try {
-  router.use('/accommodation-requests', requireAuth, requireAdmin, require('../../../routes/accommodationRequests'))
+  router.use('/accommodation-requests', requireAuth, requireAdmin, require('../public/accommodationRequests'))
 } catch (_) {}
 
 module.exports = router;

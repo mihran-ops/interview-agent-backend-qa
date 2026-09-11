@@ -14,7 +14,7 @@ const {
   validateTranscriptScores,
   validateLegacyEvidenceSnapshot,
   validateEvidenceSnapshot,
-} = require('../src/lib/finalTranscriptReconciliation');
+} = require('../src/services/finalTranscriptReconciliation');
 
 const substantiveEvidence = {
   ok: true,

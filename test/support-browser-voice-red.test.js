@@ -13,7 +13,7 @@ test('backend mounts an authenticated support voice REST and WebSocket gateway',
 });
 
 test('backend has one server-owned support prompt and knowledge snapshot', () => {
-  assert.equal(fs.existsSync(path.join(ROOT, 'src/lib/supportVoiceKnowledge.js')), true);
+  assert.equal(fs.existsSync(path.join(ROOT, 'src/services/supportVoiceKnowledge.js')), true);
   assert.equal(fs.existsSync(path.join(ROOT, 'src/content/support-voice-knowledge.json')), true);
 });
 

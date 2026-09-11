@@ -1,6 +1,6 @@
 // src/middleware/auth.js
-const { supabaseAdmin, supabaseAnon } = require('../lib/supabaseClient');
-const { buildClientScopeContext } = require('../lib/clientScope');
+const { supabaseAdmin, supabaseAnon } = require('../clients/supabase');
+const { buildClientScopeContext } = require('../services/clientScope');
 
 const supabase = supabaseAdmin;
 const ROLE_PRIORITY = ['super_admin', 'owner', 'admin', 'manager', 'member', 'tester'];

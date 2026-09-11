@@ -12,8 +12,8 @@ process.env.SUPABASE_ANON_KEY ||= 'normal-closing-anon-key';
 const {
   NORMAL_COMPLETION_FAREWELL_TEXT,
   buildConversationalContext,
-} = require('../handlers/createTavusInterview');
-const { isTerminalInterviewToolName } = require('../src/lib/tavusTerminalTool');
+} = require('../src/services/tavusInterview');
+const { isTerminalInterviewToolName } = require('../src/services/tavusTerminalTool');
 
 const ROOT = path.join(__dirname, '..');
 const personaScript = fs.readFileSync(path.join(ROOT, 'scripts', 'patchTavusQaP1Persona.js'), 'utf8');

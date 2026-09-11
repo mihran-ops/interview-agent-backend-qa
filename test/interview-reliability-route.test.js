@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
-const { createAdminInterviewReliabilityRouter } = require('../routes/adminInterviewReliability');
+const { createAdminInterviewReliabilityRouter } = require('../src/routes/admin/interviewReliability');
 
 const INTERVIEW_ID = 'daaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 

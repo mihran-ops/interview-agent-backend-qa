@@ -7,13 +7,13 @@ const { test } = require('node:test');
 const {
   buildAdminMetricsPayload,
   normalizeEmailEvent,
-} = require('../src/lib/adminMetricsService');
-const { buildOpenAIHealth } = require('../src/lib/platformHealth/openaiHealth');
-const { buildTavusHealth } = require('../src/lib/platformHealth/tavusHealth');
-const { buildRenderHealth } = require('../src/lib/platformHealth/renderHealth');
-const { buildSupabaseHealth } = require('../src/lib/platformHealth/supabaseHealth');
-const { buildSendGridHealth } = require('../src/lib/platformHealth/sendgridHealth');
-const { buildSentryHealth } = require('../src/lib/platformHealth/sentryHealth');
+} = require('../src/services/adminMetricsService');
+const { buildOpenAIHealth } = require('../src/health/openaiHealth');
+const { buildTavusHealth } = require('../src/health/tavusHealth');
+const { buildRenderHealth } = require('../src/health/renderHealth');
+const { buildSupabaseHealth } = require('../src/health/supabaseHealth');
+const { buildSendGridHealth } = require('../src/health/sendgridHealth');
+const { buildSentryHealth } = require('../src/health/sentryHealth');
 
 const PLATFORM_HEALTH_FILES = [
   'index.js',
@@ -355,7 +355,7 @@ test('GET /admin/metrics route is registered behind admin auth', () => {
 
 test('platform health adapter framework includes all required service files', () => {
   for (const file of PLATFORM_HEALTH_FILES) {
-    const fullPath = path.resolve(__dirname, '../src/lib/platformHealth', file);
+    const fullPath = path.resolve(__dirname, '../src/health', file);
     assert.equal(fs.existsSync(fullPath), true, `${file} should exist`);
   }
 });

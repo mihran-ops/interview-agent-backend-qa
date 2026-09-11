@@ -10,7 +10,7 @@ const {
   sendMemberRecoveryEmail,
   sendMembershipAgreementEmail,
   sendSubscriptionCheckoutEmail,
-} = require('../../../utils/mailer');
+} = require('../../clients/sendgrid');
 const {
   buildAdminPublicPurchasesPayload,
   resendPublicPurchaseAgreementLink,
@@ -19,8 +19,8 @@ const {
   resendPublicPurchaseWelcomeEmail,
   safePublicPurchaseActionErrorBody,
   safePublicPurchasesErrorBody,
-} = require('../../lib/adminPublicPurchasesService');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+} = require('../../services/adminPublicPurchasesService');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { sendAdminError } = require('../../services/admin/adminHelpers');

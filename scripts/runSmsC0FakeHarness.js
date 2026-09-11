@@ -20,8 +20,8 @@ net.createConnection = blockNetwork;
 tls.connect = blockNetwork;
 global.fetch = blockNetwork;
 
-const { createFakeSmsProvider } = require('../src/lib/smsFakeProvider');
-const { orchestrateOtpSmsDelivery } = require('../src/lib/smsDeliveryOrchestrator');
+const { createFakeSmsProvider } = require('../src/services/smsFakeProvider');
+const { orchestrateOtpSmsDelivery } = require('../src/services/smsDeliveryOrchestrator');
 
 const MODES = [
   'accepted',

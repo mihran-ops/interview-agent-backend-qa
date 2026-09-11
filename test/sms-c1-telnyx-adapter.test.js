@@ -4,13 +4,13 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const { test } = require('node:test');
 
-const { orchestrateOtpSmsDelivery } = require('../src/lib/smsDeliveryOrchestrator');
+const { orchestrateOtpSmsDelivery } = require('../src/services/smsDeliveryOrchestrator');
 const {
   TelnyxTransportError,
   createTelnyxSmsProvider,
   readTelnyxConfig,
   requestTelnyxMessage,
-} = require('../src/lib/telnyxSmsProvider');
+} = require('../src/clients/telnyx');
 
 const NOW = new Date('2026-08-12T12:00:00.000Z');
 const EXPIRES_AT = '2026-08-12T12:10:00.000Z';

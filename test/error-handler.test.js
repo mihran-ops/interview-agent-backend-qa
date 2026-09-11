@@ -13,22 +13,22 @@ const request = require('supertest');
 
 const ROOT = path.join(__dirname, '..');
 const appPath = path.join(ROOT, 'app.js');
-const supabaseClientPath = path.join(ROOT, 'src', 'lib', 'supabaseClient.js');
+const supabaseClientPath = path.join(ROOT, 'src', 'clients', 'supabase.js');
 const authPath = path.join(ROOT, 'src', 'middleware', 'auth.js');
-const generateRubricPath = path.join(ROOT, 'generateRubric.js');
-const kbPath = path.join(ROOT, 'routes', 'kb.js');
+const generateRubricPath = path.join(ROOT, 'src', 'services', 'generateRubric.js');
+const kbPath = path.join(ROOT, 'src', 'routes', 'client', 'kb.js');
 const dotenvPath = require.resolve('dotenv');
 
 // Every router except routes/kb.js, which is replaced by one that throws on demand.
 const ROUTE_STUBS = [
-  'routes/dashboard.js', 'routes/roles.js', 'routes/automation.js', 'routes/webhookStripe.js',
-  'routes/webhookSendgrid.js', 'routes/webhookTelnyxSms.js', 'routes/webhook.js',
-  'routes/candidateSubmit.js', 'routes/verifyOtp.js', 'routes/createTavusInterview.js',
-  'routes/accommodationRequests.js', 'routes/textInterview.js', 'routes/clientMembersScoped.js',
-  'routes/feedback.js', 'routes/alphaScreenPackages.js', 'routes/publicAnalytics.js',
-  'routes/publicLeads.js', 'routes/adminBilling.js', 'routes/tavus.js',
-  'routes/publicInterviewStatus.js', 'routes/membershipAgreementsPublic.js', 'routes/rolesUpload.js',
-  'routes/files.js', 'routes/reports.js', 'routes/reportsPdf.js',
+  'src/routes/client/dashboardRouter.js', 'src/routes/client/roles.js', 'src/routes/automation/index.js', 'src/routes/webhooks/stripe.js',
+  'src/routes/webhooks/sendgrid.js', 'src/routes/webhooks/telnyx.js', 'src/routes/webhooks/tavus.js',
+  'src/routes/public/candidateSubmit.js', 'src/routes/public/verifyOtp.js', 'src/routes/public/createTavusInterview.js',
+  'src/routes/public/accommodationRequests.js', 'src/routes/public/textInterview.js', 'src/routes/client/members.js',
+  'src/routes/client/feedback.js', 'src/routes/public/alphascreen/index.js', 'src/routes/public/analytics.js',
+  'src/routes/public/leads.js', 'src/routes/admin/billingRouter.js', 'src/routes/public/tavus.js',
+  'src/routes/public/interviewStatus.js', 'src/routes/public/membershipAgreements/index.js', 'src/routes/client/rolesUpload.js',
+  'src/routes/client/files.js', 'src/routes/client/reports.js', 'src/routes/client/reportsPdf.js',
 ];
 
 function injectModule(filename, exports) {

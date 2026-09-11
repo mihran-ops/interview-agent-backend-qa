@@ -142,21 +142,21 @@ async function withRouter(db, callback) {
   const capture = { payloads: [] };
   const originalLoad = Module._load;
   Module._load = function patchedLoad(request, parent, isMain) {
-    if (request === '../src/lib/supabaseClient' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
+    if (request === '../src/clients/supabase' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
       return { supabaseAdmin: db, supabase: db };
     }
-    if (request === '../utils/pdfRenderer' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) return { htmlToPdf: async (html) => Buffer.from(html) };
-    if (request === '../utils/renderCandidateReport' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
+    if (request === '../src/render/pdfRenderer' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) return { htmlToPdf: async (html) => Buffer.from(html) };
+    if (request === '../src/render/candidateReport' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
       return { buildCandidateReportHtml: (payload) => { capture.payloads.push(payload); return JSON.stringify(payload); } };
     }
     return originalLoad.call(this, request, parent, isMain);
   };
   process.env.SUPABASE_URL = 'http://127.0.0.1:54321';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
-  const path = require.resolve('../routes/reportsPdf');
+  const path = require.resolve('../src/routes/client/reportsPdf');
   delete require.cache[path];
   try {
-    const router = require('../routes/reportsPdf');
+    const router = require('../src/routes/client/reportsPdf');
     await callback(router, capture);
   } finally {
     Module._load = originalLoad;

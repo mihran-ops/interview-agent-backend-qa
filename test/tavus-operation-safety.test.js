@@ -10,7 +10,7 @@ const {
   TIMEOUTS,
   TavusProviderError,
   createTavusHttpClient,
-} = require('../src/lib/tavusHttpClient');
+} = require('../src/clients/tavus');
 
 process.env.SUPABASE_URL ||= 'http://127.0.0.1:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'synthetic-service-role-key';
@@ -18,13 +18,12 @@ process.env.SUPABASE_ANON_KEY ||= 'synthetic-anon-key';
 
 const ROOT = path.resolve(__dirname, '..');
 const ACTIVE_CALLERS = [
-  'handlers/createTavusInterview.js',
-  'lib/tavusDocuments.js',
-  'src/lib/tavusVendorReconciliation.js',
-  'src/lib/platformHealth/tavusHealth.js',
-  'routes/tavus.js',
+  'src/services/tavusInterview.js',
+  'src/services/tavusDocuments.js',
+  'src/services/tavusVendorReconciliation.js',
+  'src/health/tavusHealth.js',
+  'src/routes/public/tavus.js',
   'src/services/tavusEvents/index.js',
-  'lib/tavusClient.js',
   'scripts/patchTavusQaP1Persona.js',
   'scripts/syncTavusPersona.js',
   'scripts/syncTavusPronunciationDictionary.js',
@@ -49,12 +48,11 @@ test('all active Tavus API callers use the canonical shared client', () => {
     assert.doesNotMatch(source, /['"]x-api-key['"]\s*:/i, relativePath);
   }
   for (const relativePath of [
-    'handlers/createTavusInterview.js',
-    'lib/tavusDocuments.js',
-    'src/lib/platformHealth/tavusHealth.js',
-    'routes/tavus.js',
+    'src/services/tavusInterview.js',
+    'src/services/tavusDocuments.js',
+    'src/health/tavusHealth.js',
+    'src/routes/public/tavus.js',
     'src/services/tavusEvents/index.js',
-    'lib/tavusClient.js',
     'scripts/patchTavusQaP1Persona.js',
     'scripts/syncTavusPersona.js',
     'scripts/syncTavusPronunciationDictionary.js',
@@ -69,12 +67,12 @@ test('pronunciation sync requires an explicit QA PAL allowlist distinct from pro
   assert.doesNotMatch(source, /PRONUNCIATION_QA_PAL_ID \|\| PAL_ID/);
 });
 
-test('only documented inactive legacy modules retain obsolete Tavus direct URLs', () => {
-  for (const relativePath of ['createTavusInterview.js', 'lib/createTavusInterviewInternal.js']) {
-    assert.match(read(relativePath), /https:\/\/api\.tavus\.io\/conversations/);
-    assert.match(read('docs/tavus-http-reliability-qa.md'), new RegExp(relativePath.replaceAll('/', '\\/')));
+// The documented inactive exceptions were the unreferenced legacy modules, which
+// step 10 deleted. No module may now hold an obsolete direct Tavus URL.
+test('no module retains obsolete Tavus direct URLs', () => {
+  for (const relativePath of ACTIVE_CALLERS) {
+    assert.doesNotMatch(read(relativePath), /https:\/\/api\.tavus\.io\/conversations/, relativePath);
   }
-  assert.match(read('docs/tavus-http-reliability-qa.md'), /documented inactive\s+exceptions/i);
 });
 
 test('webhook transcript and perception paths still store callback bodies without fetching provider URLs', () => {
@@ -237,7 +235,7 @@ test('normal create response remains unchanged and includes no transport wrapper
 });
 
 test('client source telemetry never records request URLs, auth headers, or request bodies', () => {
-  const source = read('src/lib/tavusHttpClient.js');
+  const source = read('src/clients/tavus.js');
   assert.doesNotMatch(source, /emit\([^\n]+\b(?:url|headers|body|apiKey)\b/);
   assert.doesNotMatch(source, /telemetry\([^\n]+\b(?:url|headers|body|apiKey)\b/);
 });

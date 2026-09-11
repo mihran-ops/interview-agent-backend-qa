@@ -5,7 +5,7 @@ const { test } = require('node:test');
 
 const {
   getRoleInterviewAvailability,
-} = require('../src/lib/roleInterviewAvailability');
+} = require('../src/services/roleInterviewAvailability');
 
 const CLIENT_ID = '11111111-1111-4111-8111-111111111111';
 const ROLE_ID = '22222222-2222-4222-8222-222222222222';

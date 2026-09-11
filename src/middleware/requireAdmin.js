@@ -4,7 +4,7 @@
 // so it can assume req.user is present and only has to answer whether that
 // user is an active admin.
 
-const { supabaseAdmin } = require('../lib/supabaseClient');
+const { supabaseAdmin } = require('../clients/supabase');
 
 async function requireAdmin(req, res, next) {
   try {

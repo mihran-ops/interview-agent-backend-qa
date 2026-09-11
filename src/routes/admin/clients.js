@@ -3,8 +3,8 @@
 // Client records: listing, creation, contract controls and deletion. Mounted on the admin router.
 
 const express = require('express');
-const { buildClientDashboardReturnUrl } = require('../../../config/urlConfig');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildClientDashboardReturnUrl } = require('../../config/urlConfig');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const {
@@ -154,7 +154,7 @@ router.patch('/clients/:id/auto-renew', requireAuth, requireAdmin, async (req, r
   const isAnnual = billingInterval === 'annual'
   if (isAnnual || !isMonthly) {
     try {
-      const stripe = require('../../../lib/stripeClient')
+      const stripe = require('../../clients/stripe')
       await stripe.subscriptions.update(client.stripe_subscription_id, { cancel_at_period_end: autoRenew !== true })
     } catch (e) {
       return res.status(500).json({ error: 'update_client_failed', detail: e?.message || 'stripe_update_failed' })
@@ -260,7 +260,7 @@ router.post('/clients/:id/cancel-contract', requireAuth, requireAdmin, async (re
   }
 
   try {
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
     let stripeInvoiceId = null
 
     if (finalInvoiceAmount && finalInvoiceAmount > 0) {

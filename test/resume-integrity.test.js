@@ -8,7 +8,7 @@ const {
   inspectDocxXml,
   inspectInstructionLikeContent,
   normalizeStoredResumeIntegrity
-} = require('../src/lib/resumeIntegrity');
+} = require('../src/services/resumeIntegrity');
 
 test('ordinary resume language remains clean, including legitimate prompt-security experience', () => {
   const ordinary = inspectInstructionLikeContent(

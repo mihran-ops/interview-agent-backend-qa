@@ -11,7 +11,7 @@ const {
   requireProviderConversationBinding,
   requireReportAccess,
   requireRoleAccess,
-} = require('../src/lib/serviceRoleAuthorization');
+} = require('../src/services/serviceRoleAuthorization');
 
 const ENABLED = process.env.SERVICE_ROLE_AUTHORIZATION_DISPOSABLE === 'true';
 const SOCKET = process.env.SERVICE_ROLE_AUTHORIZATION_PG_SOCKET || '/tmp';

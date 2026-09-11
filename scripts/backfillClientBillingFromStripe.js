@@ -1,8 +1,8 @@
 require('dotenv').config();
 
 const Stripe = require('stripe');
-const { supabaseAdmin } = require('../src/lib/supabaseClient');
-const { requirePlanCapacity } = require('../src/lib/planCapacity');
+const { supabaseAdmin } = require('../src/clients/supabase');
+const { requirePlanCapacity } = require('../src/services/planCapacity');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 const LIVE_SUB_STATUSES = new Set(['active', 'trialing']);

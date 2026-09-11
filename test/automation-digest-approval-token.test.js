@@ -8,10 +8,10 @@ const express = require('express');
 
 const projectRoot = path.resolve(__dirname, '..');
 const routePath = path.join(projectRoot, 'src', 'routes', 'automation', 'index.js');
-const supabaseClientPath = path.join(projectRoot, 'src', 'lib', 'supabaseClient.js');
+const supabaseClientPath = path.join(projectRoot, 'src', 'clients', 'supabase.js');
 const authMiddlewarePath = path.join(projectRoot, 'src', 'middleware', 'auth.js');
-const mailerPath = path.join(projectRoot, 'utils', 'mailer.js');
-const digestTokenHelpersPath = path.join(projectRoot, 'src', 'lib', 'automationDigestApprovalTokens.js');
+const mailerPath = path.join(projectRoot, 'src', 'clients', 'sendgrid.js');
+const digestTokenHelpersPath = path.join(projectRoot, 'src', 'services', 'automationDigestApprovalTokens.js');
 const sendgridMailPath = require.resolve('@sendgrid/mail');
 
 const {
@@ -21,7 +21,7 @@ const {
 } = require(digestTokenHelpersPath);
 const {
   hashApprovalToken
-} = require(path.join(projectRoot, 'src', 'lib', 'automationApprovalTokens.js'));
+} = require(path.join(projectRoot, 'src', 'services', 'automationApprovalTokens.js'));
 
 const rawToken = 'digest-token-1234567890';
 const now = Date.now();

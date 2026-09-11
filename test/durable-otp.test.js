@@ -18,9 +18,9 @@ const ID = {
   interview: '81000000-0000-4000-8000-000000000006',
 };
 
-const otp = require('../src/lib/otpChallenge');
+const otp = require('../src/services/otpChallenge');
 const launch = require('../src/middleware/otpLaunchCapability');
-const { OTP_DELIVERY_CHANNELS, createEmailOtpDelivery } = require('../src/lib/otpDelivery');
+const { OTP_DELIVERY_CHANNELS, createEmailOtpDelivery } = require('../src/services/otpDelivery');
 
 function binding(overrides = {}) {
   return {

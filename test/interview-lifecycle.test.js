@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const {
   evaluateReplacementEligibility,
   transcriptCompletionTransition,
-} = require('../src/lib/interviewLifecycle');
+} = require('../src/services/interviewLifecycle');
 
 test('completed substantive attempt permanently blocks a replacement', () => {
   const result = evaluateReplacementEligibility({

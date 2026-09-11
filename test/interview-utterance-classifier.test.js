@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const {
   classifyCandidateUtterance,
   classifyTranscriptCandidateEvidence,
-} = require('../src/lib/interviewUtteranceClassifier');
+} = require('../src/services/interviewUtteranceClassifier');
 
 test('candidate clarification, repeat, audio, acknowledgement, and filler are never substantive', () => {
   for (const input of [

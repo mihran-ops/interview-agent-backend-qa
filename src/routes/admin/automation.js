@@ -3,8 +3,8 @@
 // Automation rule administration and the overview that summarises it. Mounted on the admin router.
 
 const express = require('express');
-const { normalizeCriteriaConfig, stableStringify } = require('../../lib/candidateAutomationEvaluator');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { normalizeCriteriaConfig, stableStringify } = require('../../services/candidateAutomationEvaluator');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { cleanAdminUserEmail, normalizeAdminJsonObject, sendAdminError, trimNullableString } = require('../../services/admin/adminHelpers');

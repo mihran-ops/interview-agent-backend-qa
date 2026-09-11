@@ -6,8 +6,8 @@ const http = require('node:http');
 const path = require('node:path');
 const { test } = require('node:test');
 
-const routePath = path.join(__dirname, '..', 'routes', 'publicAnalytics.js');
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js');
+const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'analytics.js');
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js');
 
 function injectModule(filename, exports) {
   require.cache[filename] = {

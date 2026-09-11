@@ -9,7 +9,7 @@ const {
   finalizePendingRolePurchase,
   finalizePrepaidRoleCredit,
   findUnusedFirstRolePrepayCredit,
-} = require('../src/lib/rolePurchaseFinalizer');
+} = require('../src/services/rolePurchaseFinalizer');
 
 const migrationsDir = path.join(
   __dirname,

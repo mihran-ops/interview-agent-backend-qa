@@ -4,8 +4,8 @@
 // Mounted at the application root, so the paths here are absolute.
 
 const express = require('express');
-const { buildClientScopeContext } = require('../../lib/clientScope');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildClientScopeContext } = require('../../services/clientScope');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const { uniqueClientIds } = require('../../services/clientScope/clientScope');
 const { clientScopeMetadata, loadClientScopeContextForResponse } = require('../../services/clientScope/tenancy');

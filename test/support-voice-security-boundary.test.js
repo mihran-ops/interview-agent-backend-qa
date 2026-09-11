@@ -2,16 +2,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { buildSupportVoicePrompt, MAX_PROMPT_BYTES, SUPPORT_GREETING, SUPPORT_POLICY } = require('../src/lib/supportVoiceKnowledge');
-const { buildAuthoritativeSessionUpdate } = require('../src/lib/supportVoiceProtocol');
+const { buildSupportVoicePrompt, MAX_PROMPT_BYTES, SUPPORT_GREETING, SUPPORT_POLICY } = require('../src/services/supportVoiceKnowledge');
+const { buildAuthoritativeSessionUpdate } = require('../src/services/supportVoiceProtocol');
 
 const root = path.resolve(__dirname, '..');
 const voiceFiles = [
-  'src/lib/supportVoiceGateway.js',
-  'src/lib/supportVoiceKnowledge.js',
-  'src/lib/supportVoiceMembership.js',
-  'src/lib/supportVoiceProtocol.js',
-  'src/lib/supportVoiceSessionStore.js',
+  'src/services/supportVoiceGateway.js',
+  'src/services/supportVoiceKnowledge.js',
+  'src/services/supportVoiceMembership.js',
+  'src/services/supportVoiceProtocol.js',
+  'src/services/supportVoiceSessionStore.js',
 ].map((relative) => ({ relative, source: fs.readFileSync(path.join(root, relative), 'utf8') }));
 
 test('voice call graph has no tenant, candidate, billing, transcript, account-action, tool, or selected-scope path', () => {

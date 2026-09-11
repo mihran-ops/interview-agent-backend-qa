@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const {
   archiveChildClientEntity,
   restoreChildClientEntity,
-} = require('../src/lib/clientEntityArchive');
+} = require('../src/services/clientEntityArchive');
 
 const BASE_TABLES = {
   clients: [

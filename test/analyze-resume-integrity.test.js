@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const analyzeResume = require('../analyzeResume');
+const analyzeResume = require('../src/services/analyzeResume');
 
 function fakeDb(clientName = 'Example Client') {
   const state = { inserts: [] };

@@ -11,7 +11,7 @@ const {
   createTavusHttpClient,
   parseRetryAfterMs,
   sanitizeProviderText,
-} = require('../src/lib/tavusHttpClient');
+} = require('../src/clients/tavus');
 
 function response(statusCode, value, headers = {}) {
   const text = value === undefined

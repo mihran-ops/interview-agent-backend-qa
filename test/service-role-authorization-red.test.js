@@ -50,7 +50,7 @@ async function withRouter(routeName, db, callback) {
   const originalLoad = Module._load;
   Module._load = function patchedLoad(request, parent, isMain) {
     const parentFile = parent?.filename || '';
-    if (request === '../src/lib/supabaseClient' && parentFile.includes(`/routes/${routeName}.js`)) {
+    if (request === '../src/clients/supabase' && parentFile.includes(`/routes/${routeName}.js`)) {
       return { supabaseAdmin: db, supabase: db };
     }
     if (request === '../src/middleware/auth' && parentFile.includes(`/routes/${routeName}.js`)) {

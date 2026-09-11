@@ -5,8 +5,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { test } = require('node:test')
 
-const { buildMembershipAgreementHtml } = require('../utils/renderMembershipAgreement')
-const { buildCandidateReportHtml } = require('../utils/renderCandidateReport')
+const { buildMembershipAgreementHtml } = require('../src/render/membershipAgreement')
+const { buildCandidateReportHtml } = require('../src/render/candidateReport')
 
 const root = path.join(__dirname, '..')
 const securityOverview = fs.readFileSync(

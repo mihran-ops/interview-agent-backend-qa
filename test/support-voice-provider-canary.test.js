@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const test = require('node:test');
-const { createSupportVoiceProviderCanary } = require('../src/lib/supportVoiceProviderCanary');
+const { createSupportVoiceProviderCanary } = require('../src/services/supportVoiceProviderCanary');
 
 function providerSession(prompt, overrides = {}) {
   return {

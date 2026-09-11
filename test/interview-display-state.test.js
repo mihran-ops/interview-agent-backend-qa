@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
-const { classifyInterviewDisplayState } = require('../src/lib/interviewDisplayState');
+const { classifyInterviewDisplayState } = require('../src/services/interviewDisplayState');
 
 test('dashboard interview states are concise and do not expose raw failure details', () => {
   assert.deepEqual(classifyInterviewDisplayState(null), { state: 'not_started', label: 'Not started' });
@@ -43,7 +43,7 @@ test('dashboard interview states are concise and do not expose raw failure detai
 });
 
 test('dashboard uses the canonical unanswered-question array without querying a missing fallback column', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'dashboard.js'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'client', 'dashboardRouter.js'), 'utf8');
   assert.doesNotMatch(source, /unanswered_candidate_questions_text/);
   assert.match(source, /interview_state_label/);
   assert.match(source, /iv\?\.has_substantive_response === false/);

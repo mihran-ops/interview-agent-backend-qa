@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const express = require('express');
-const { createAdminSmsMonitoringRouter } = require('../routes/adminSmsMonitoring');
+const { createAdminSmsMonitoringRouter } = require('../src/routes/admin/smsMonitoring');
 
 async function withServer({ isGlobalAdmin, service }, run) {
   const app = express();

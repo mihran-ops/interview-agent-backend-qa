@@ -2,8 +2,8 @@
 
 // Tenancy resolution: memberships, effective roles, and child entity access.
 
-const { buildClientScopeContext } = require('../../lib/clientScope');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildClientScopeContext } = require('../clientScope');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { uniqueClientIds } = require('./clientScope');
 
 async function loadClientScopeContextForResponse(req, knownClients) {

@@ -4,10 +4,10 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { test } = require('node:test')
 
-const checkoutPath = path.join(__dirname, '..', 'src', 'lib', 'subscriptionCheckout.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
-const clientBillingScopePath = path.join(__dirname, '..', 'src', 'lib', 'clientBillingScope.js')
-const urlConfigPath = path.join(__dirname, '..', 'config', 'urlConfig.js')
+const checkoutPath = path.join(__dirname, '..', 'src', 'services', 'subscriptionCheckout.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
+const clientBillingScopePath = path.join(__dirname, '..', 'src', 'services', 'clientBillingScope.js')
+const urlConfigPath = path.join(__dirname, '..', 'src', 'config', 'urlConfig.js')
 const stripePath = require.resolve('stripe')
 
 function injectModule(filename, exports) {

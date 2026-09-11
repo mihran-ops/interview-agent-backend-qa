@@ -16,7 +16,7 @@ const {
   generateRetailVerificationCode,
   hashRetailVerificationCode,
   hasValidRetailEmailVerification,
-} = require('../../../services/alphaScreen');
+} = require('../../../services/alphaScreen/index');
 
 const router = express.Router();
 

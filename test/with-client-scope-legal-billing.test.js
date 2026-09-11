@@ -4,11 +4,11 @@ const path = require('node:path');
 const {
   canManageMembersForClient,
   canViewLegalBillingForClient
-} = require('../src/lib/clientScope');
+} = require('../src/services/clientScope');
 
 const projectRoot = path.join(__dirname, '..');
 const authPath = path.join(projectRoot, 'src', 'middleware', 'auth.js');
-const supabaseClientPath = path.join(projectRoot, 'src', 'lib', 'supabaseClient.js');
+const supabaseClientPath = path.join(projectRoot, 'src', 'clients', 'supabase.js');
 
 class Query {
   constructor(db, table) {

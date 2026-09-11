@@ -9,12 +9,12 @@ const projectRoot = path.resolve(__dirname, '..')
 const { test } = require('node:test')
 
 const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'membershipAgreements', 'index.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
-const clientBillingScopePath = path.join(__dirname, '..', 'src', 'lib', 'clientBillingScope.js')
-const subscriptionCheckoutPath = path.join(__dirname, '..', 'src', 'lib', 'subscriptionCheckout.js')
-const pdfRendererPath = path.join(__dirname, '..', 'utils', 'pdfRenderer.js')
-const mailerPath = path.join(__dirname, '..', 'utils', 'mailer.js')
-const urlConfigPath = path.join(__dirname, '..', 'config', 'urlConfig.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
+const clientBillingScopePath = path.join(__dirname, '..', 'src', 'services', 'clientBillingScope.js')
+const subscriptionCheckoutPath = path.join(__dirname, '..', 'src', 'services', 'subscriptionCheckout.js')
+const pdfRendererPath = path.join(__dirname, '..', 'src', 'render', 'pdfRenderer.js')
+const mailerPath = path.join(__dirname, '..', 'src', 'clients', 'sendgrid.js')
+const urlConfigPath = path.join(__dirname, '..', 'src', 'config', 'urlConfig.js')
 
 const TOKEN = 'phase-c3-test-token'
 const TOKEN_HASH = crypto.createHash('sha256').update(TOKEN).digest('hex')

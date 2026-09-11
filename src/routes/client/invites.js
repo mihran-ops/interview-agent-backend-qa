@@ -5,8 +5,8 @@
 
 const crypto = require('crypto');
 const express = require('express');
-const { buildAcceptInviteUrl } = require('../../../config/urlConfig');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildAcceptInviteUrl } = require('../../config/urlConfig');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const { hasClientWriteAccess } = require('../../services/clientScope/clientBilling');
 

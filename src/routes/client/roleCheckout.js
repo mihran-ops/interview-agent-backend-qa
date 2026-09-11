@@ -7,12 +7,12 @@ const crypto = require('crypto');
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { buildClientDashboardReturnUrl } = require('../../../config/urlConfig');
-const { generateRubricAndKBForRole } = require('../../../generateRubric');
-const { resolveBillingOwnerForScope } = require('../../lib/clientBillingScope');
-const { normalizeInterviewType } = require('../../lib/interviewTypes');
-const { finalizePrepaidRoleCredit, findUnusedFirstRolePrepayCredit } = require('../../lib/rolePurchaseFinalizer');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildClientDashboardReturnUrl } = require('../../config/urlConfig');
+const { generateRubricAndKBForRole } = require('../../services/generateRubric');
+const { resolveBillingOwnerForScope } = require('../../services/clientBillingScope');
+const { normalizeInterviewType } = require('../../services/interviewTypes');
+const { finalizePrepaidRoleCredit, findUnusedFirstRolePrepayCredit } = require('../../services/rolePurchaseFinalizer');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const {
   hasClientWriteAccess,
@@ -142,7 +142,7 @@ router.post('/clients/roles/checkout-session', requireAuth, withClientScope, rol
       })
     }
 
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
 
     let stripeCustomerId = String(billingClient.stripe_customer_id || '').trim()
     if (stripeCustomerId) {

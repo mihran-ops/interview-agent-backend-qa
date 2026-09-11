@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { evaluateCandidateAutomation } = require('../src/lib/candidateAutomationEvaluator');
+const { evaluateCandidateAutomation } = require('../src/services/candidateAutomationEvaluator');
 
 class FakeQuery {
   constructor(db, table) {

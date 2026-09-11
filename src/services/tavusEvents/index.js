@@ -7,30 +7,30 @@
 
 const Sentry = require('@sentry/node');
 const crypto = require('node:crypto');
-const { supabaseAdmin: defaultSupabaseAdmin } = require('../../lib/supabaseClient');
+const { supabaseAdmin: defaultSupabaseAdmin } = require('../../clients/supabase');
 const { analyzeInterviewTranscriptById } = require('../../../scripts/backfillInterviews.js');
-const { generateInterviewAnalysisV2 } = require('../../lib/interviewAnalysisV2');
-const { INSUFFICIENT_SUMMARY, isSubstantiveTranscript, scoreInterview } = require('../../lib/interviewScoring');
-const { getRoleInterviewAvailability, syncRoleInterviewLimitNotification } = require('../../lib/roleInterviewAvailability');
-const { transcriptCompletionTransition } = require('../../lib/interviewLifecycle');
-const { classifyCandidateUtterance } = require('../../lib/interviewUtteranceClassifier');
-const { excludeWarmupFromTranscript, excludeWarmupFromTranscriptItems } = require('../../lib/warmupExclusion');
+const { generateInterviewAnalysisV2 } = require('../interviewAnalysisV2');
+const { INSUFFICIENT_SUMMARY, isSubstantiveTranscript, scoreInterview } = require('../interviewScoring');
+const { getRoleInterviewAvailability, syncRoleInterviewLimitNotification } = require('../roleInterviewAvailability');
+const { transcriptCompletionTransition } = require('../interviewLifecycle');
+const { classifyCandidateUtterance } = require('../interviewUtteranceClassifier');
+const { excludeWarmupFromTranscript, excludeWarmupFromTranscriptItems } = require('../warmupExclusion');
 const {
   buildEvidenceSnapshot,
   projectReconciliationLog,
   validateTranscriptScores,
-} = require('../../lib/finalTranscriptReconciliation');
+} = require('../finalTranscriptReconciliation');
 const {
   extractCandidateQuestions,
-} = require('../../lib/unansweredCandidateQuestions');
-const { isTerminalInterviewToolName } = require('../../lib/tavusTerminalTool');
-const { authenticateTavusWebhookRequest } = require('../../lib/tavusWebhookAuth');
-const { tavusHttpClient: defaultTavusHttpClient } = require('../../lib/tavusHttpClient');
+} = require('../unansweredCandidateQuestions');
+const { isTerminalInterviewToolName } = require('../tavusTerminalTool');
+const { authenticateTavusWebhookRequest } = require('../tavusWebhookAuth');
+const { tavusHttpClient: defaultTavusHttpClient } = require('../../clients/tavus');
 const {
   buildTavusWebhookValidationTelemetry,
   getOwnPath,
   validateTavusWebhookPayload,
-} = require('../../lib/tavusWebhookPayload');
+} = require('../tavusWebhookPayload');
 
 let activeTavusHttpClient = defaultTavusHttpClient;
 

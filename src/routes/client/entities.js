@@ -4,9 +4,9 @@
 // Mounted at the application root, so the paths here are absolute.
 
 const express = require('express');
-const { archiveChildClientEntity } = require('../../lib/clientEntityArchive');
-const { processClientEntityImport } = require('../../lib/clientEntityImportService');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { archiveChildClientEntity } = require('../../services/clientEntityArchive');
+const { processClientEntityImport } = require('../../services/clientEntityImportService');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const { formatTenantClientEntity, hasTenantEntityManagementAccess, resolveTenantEntityParent } = require('../../services/clientScope/tenancy');
 

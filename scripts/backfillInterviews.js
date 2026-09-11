@@ -3,7 +3,7 @@ require('dotenv').config();
 const fetch = require('node-fetch');
 
 const { createClient } = require('@supabase/supabase-js');
-const { isSubstantiveTranscript, scoreInterview, INSUFFICIENT_SUMMARY } = require('../src/lib/interviewScoring');
+const { isSubstantiveTranscript, scoreInterview, INSUFFICIENT_SUMMARY } = require('../src/services/interviewScoring');
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY

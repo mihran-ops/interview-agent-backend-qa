@@ -2,20 +2,20 @@
 
 const express = require('express')
 const crypto = require('crypto')
-const { supabaseAdmin } = require('../../lib/supabaseClient')
+const { supabaseAdmin } = require('../../clients/supabase')
 const {
   buildAlphaScreenPackageSnapshot,
   isAlphaScreenBillingCadenceSupported,
   listPublicAlphaScreenPackages,
   normalizeAlphaScreenPlanKey,
   normalizeBillingInterval
-} = require('../../lib/alphaScreenPackages')
-const { buildMembershipAgreementSignUrl } = require('../../../config/urlConfig')
-const { htmlToPdf } = require('../../../utils/pdfRenderer')
-const { buildMembershipAgreementHtml } = require('../../../utils/renderMembershipAgreement')
-const { resolvePublicCheckoutReturnState } = require('../../lib/publicPurchaseActivation')
-const { getRequestSubjectKey, hashRateLimitSubject, checkAndIncrementRateLimit } = require('../../lib/rateLimit')
-const { sendRetailSignupEmailVerificationCode } = require('../../../utils/mailer')
+} = require('../alphaScreenPackages')
+const { buildMembershipAgreementSignUrl } = require('../../config/urlConfig')
+const { htmlToPdf } = require('../../render/pdfRenderer')
+const { buildMembershipAgreementHtml } = require('../../render/membershipAgreement')
+const { resolvePublicCheckoutReturnState } = require('../publicPurchaseActivation')
+const { getRequestSubjectKey, hashRateLimitSubject, checkAndIncrementRateLimit } = require('../rateLimit')
+const { sendRetailSignupEmailVerificationCode } = require('../../clients/sendgrid')
 const {
   RETAIL_SMS_CONSENT_COPY_VERSION,
   RetailSmsVerificationError,
@@ -25,7 +25,7 @@ const {
   loadRetailSmsVerificationState,
   normalizeRetailPhone,
   readRetailSmsConfiguration
-} = require('../../lib/retailSmsVerification')
+} = require('../retailSmsVerification')
 
 const AGREEMENTS_BUCKET = process.env.SUPABASE_AGREEMENTS_BUCKET || 'agreements'
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

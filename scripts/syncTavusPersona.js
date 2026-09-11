@@ -9,7 +9,7 @@
 //   TAVUS_SOURCE_PERSONA_ID=p7cb30e9c407 TAVUS_TARGET_PERSONA_ID=p75bb8779b7d node scripts/syncTavusPersona.js --apply
 'use strict';
 
-const { createTavusHttpClient } = require('../src/lib/tavusHttpClient');
+const { createTavusHttpClient } = require('../src/clients/tavus');
 
 try {
   require('dotenv').config();

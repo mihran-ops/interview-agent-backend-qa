@@ -7,15 +7,15 @@
 
 const express = require('express');
 
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { ensureUserIdAndRecoveryLink } = require('../../services/users/userProvisioning');
-const { resolvePublicCheckoutReturnState } = require('../../lib/publicPurchaseActivation');
+const { resolvePublicCheckoutReturnState } = require('../../services/publicPurchaseActivation');
 const {
   buildClientDashboardReturnUrl,
   buildClientPwResetUrl,
   buildPublicCheckoutSuccessUrl,
   buildPublicPwResetUrl,
-} = require('../../../config/urlConfig');
+} = require('../../config/urlConfig');
 
 const router = express.Router();
 
@@ -48,7 +48,7 @@ router.get('/subscription-success', async (req, res) => {
   }
 
   try {
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
     const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['subscription'] })
     const pickStripeId = (value) => {
       if (!value) return null

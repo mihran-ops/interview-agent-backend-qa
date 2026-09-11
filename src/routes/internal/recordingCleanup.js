@@ -4,8 +4,8 @@
 
 const express = require('express');
 
-const { supabaseAdmin } = require('../../lib/supabaseClient');
-const { cleanupNoSubstantiveRecordings } = require('../../lib/recordingCleanup');
+const { supabaseAdmin } = require('../../clients/supabase');
+const { cleanupNoSubstantiveRecordings } = require('../../services/recordingCleanup');
 
 const router = express.Router();
 

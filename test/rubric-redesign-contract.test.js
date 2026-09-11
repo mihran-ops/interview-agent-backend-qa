@@ -12,7 +12,7 @@ function source(relativePath) {
 }
 
 test('red contract: membership owns one authoritative exact duration and question-count map', () => {
-  const planCapacityPath = path.join(ROOT, 'src', 'lib', 'planCapacity.js');
+  const planCapacityPath = path.join(ROOT, 'src', 'services', 'planCapacity.js');
   assert.equal(fs.existsSync(planCapacityPath), true, 'authoritative plan-capacity module is missing');
   const text = fs.readFileSync(planCapacityPath, 'utf8');
   assert.match(text, /basic[\s\S]*10[\s\S]*5/i);
@@ -21,14 +21,14 @@ test('red contract: membership owns one authoritative exact duration and questio
 });
 
 test('red contract: rubric quantity is not derived from legacy interview type', () => {
-  const text = source('generateRubric.js');
+  const text = source('src/services/generateRubric.js');
   assert.doesNotMatch(text, /RUBRIC_TARGET_MINIMUMS/);
   assert.doesNotMatch(text, /replacementRubricTargetCount\(interviewType\)/);
   assert.match(text, /planCapacity|plan_capacity|scoredQuestionCount/);
 });
 
 test('red contract: the fixed non-work warm-up replaces the legacy immediate scored opening', () => {
-  const text = [source('handlers/createTavusInterview.js'), source('src/lib/warmupExclusion.js')].join('\n');
+  const text = [source('src/services/tavusInterview.js'), source('src/services/warmupExclusion.js')].join('\n');
   assert.match(text, /Speaking with an AI can feel a little different at first/);
   assert.match(text, /favorite season/);
   assert.match(text, /Thanks for sharing\. Let[’']s begin\./);
@@ -37,18 +37,18 @@ test('red contract: the fixed non-work warm-up replaces the legacy immediate sco
 });
 
 test('red contract: warm-up evidence has a shared downstream exclusion boundary', () => {
-  const exclusionPath = path.join(ROOT, 'src', 'lib', 'warmupExclusion.js');
+  const exclusionPath = path.join(ROOT, 'src', 'services', 'warmupExclusion.js');
   assert.equal(fs.existsSync(exclusionPath), true, 'shared warm-up exclusion module is missing');
-  const scoring = source('src/lib/interviewScoring.js');
-  const analysis = source('src/lib/interviewAnalysisV2.js');
-  const classifier = source('src/lib/interviewUtteranceClassifier.js');
+  const scoring = source('src/services/interviewScoring.js');
+  const analysis = source('src/services/interviewAnalysisV2.js');
+  const classifier = source('src/services/interviewUtteranceClassifier.js');
   assert.match(scoring, /excludeWarmup|stripWarmup/);
   assert.match(analysis, /excludeWarmup|stripWarmup/);
   assert.match(classifier, /excludeWarmup|stripWarmup/);
 });
 
 test('red contract: canonical types and legacy aliases are application-normalized', () => {
-  const typePath = path.join(ROOT, 'src', 'lib', 'interviewTypes.js');
+  const typePath = path.join(ROOT, 'src', 'services', 'interviewTypes.js');
   assert.equal(fs.existsSync(typePath), true, 'canonical interview-type module is missing');
   const text = fs.readFileSync(typePath, 'utf8');
   assert.match(text, /basic[\s\S]*core/i);
@@ -58,8 +58,8 @@ test('red contract: canonical types and legacy aliases are application-normalize
 
 test('red contract: new role writes no longer persist legacy interview-type values', () => {
   const roleWrites = [
-    source('src/lib/rolePurchaseFinalizer.js'),
-    source('routes/roles.js'),
+    source('src/services/rolePurchaseFinalizer.js'),
+    source('src/routes/client/roles.js'),
     source('app.js'),
   ].join('\n');
   assert.doesNotMatch(roleWrites, /new Set\(\['BASIC',\s*'DETAILED',\s*'TECHNICAL'\]\)/);

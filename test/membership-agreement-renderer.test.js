@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
 
-const { buildMembershipAgreementHtml } = require('../utils/renderMembershipAgreement')
+const { buildMembershipAgreementHtml } = require('../src/render/membershipAgreement')
 
 const baseAgreement = {
   client_legal_name: 'Acme Dental Group',

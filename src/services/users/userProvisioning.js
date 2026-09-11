@@ -3,7 +3,7 @@
 // Supabase Auth user provisioning, moved out of app.js unchanged. Shared by the admin
 // routes and the public checkout-success handler, so it belongs to neither router.
 
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { supabaseAdmin } = require('../../clients/supabase');
 
 // Helper: ensure a user exists/invite; return user_id + optional action_link
 async function ensureUserIdAndInvite(email, redirectTo, opts = {}) {

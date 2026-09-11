@@ -11,12 +11,12 @@ const {
   readSmsProductionControlConfig,
   releaseSmsSpend,
   reserveSmsSpend,
-} = require('../src/lib/smsProductionControls');
+} = require('../src/services/smsProductionControls');
 const {
   lookupSmsLineType,
   normalizeTelnyxLineType,
   readTelnyxLookupConfig,
-} = require('../src/lib/telnyxNumberLookup');
+} = require('../src/services/telnyxNumberLookup');
 
 const SECRET = Buffer.alloc(32, 17);
 const FINGERPRINT = 'c'.repeat(64);

@@ -12,7 +12,7 @@ const {
   CSV_EXPORT_LIMIT,
   unarchivePublicLeadCapture,
   updatePublicLeadCaptureArchiveBatch,
-} = require('../src/lib/adminPublicAnalyticsService');
+} = require('../src/services/adminPublicAnalyticsService');
 
 class FakeQuery {
   constructor(db, table) {
@@ -176,8 +176,8 @@ test('admin public analytics route is registered behind admin auth and public wr
   assert.match(routeSource, /router\.post\('\/public-analytics\/leads\/:id\/unarchive', requireAuth, requireAdmin/);
   assert.match(routeSource, /Content-Disposition/);
   assert.match(routeSource, /X-Export-Row-Count/);
-  assert.match(appSource, /app\.use\('\/api\/public-analytics', require\('\.\/routes\/publicAnalytics'\)\)/);
-  assert.match(appSource, /app\.use\('\/api\/public-leads', require\('\.\/routes\/publicLeads'\)\)/);
+  assert.match(appSource, /app\.use\('\/api\/public-analytics', require\('\.\/src\/routes\/public\/analytics'\)\)/);
+  assert.match(appSource, /app\.use\('\/api\/public-leads', require\('\.\/src\/routes\/public\/leads'\)\)/);
 });
 
 test('admin public analytics archive filter defaults to active leads', async () => {

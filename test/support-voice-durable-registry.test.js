@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const gatewaySource = () => fs.readFileSync(
-  path.join(__dirname, '..', 'src', 'lib', 'supportVoiceGateway.js'),
+  path.join(__dirname, '..', 'src', 'services', 'supportVoiceGateway.js'),
   'utf8',
 );
 

@@ -3,9 +3,9 @@
 // Candidate listing and deletion. Mounted on the admin router.
 
 const express = require('express');
-const { entityFieldsForClientId, loadEntityMap, resolveEntityFilter, uniqueIds: uniqueEntityIds } = require('../../lib/entityScopeFilter');
-const { isInterviewRecoveryCoreEmailEnabled, isInterviewRecoveryCoreEnabled } = require('../../lib/interviewAttemptService');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { entityFieldsForClientId, loadEntityMap, resolveEntityFilter, uniqueIds: uniqueEntityIds } = require('../../services/entityScopeFilter');
+const { isInterviewRecoveryCoreEmailEnabled, isInterviewRecoveryCoreEnabled } = require('../../services/interviewAttemptService');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 

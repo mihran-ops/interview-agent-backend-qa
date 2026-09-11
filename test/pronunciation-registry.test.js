@@ -9,7 +9,7 @@ const {
   normalizePronunciationTerm,
   resolvePronunciationTerms,
   validatePronunciationTerm,
-} = require('../src/lib/pronunciationRegistry');
+} = require('../src/services/pronunciationRegistry');
 
 function term(overrides = {}) {
   return {

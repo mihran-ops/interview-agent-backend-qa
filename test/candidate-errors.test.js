@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { buildCandidateError, getInterviewConflictCode } = require('../src/lib/candidateErrors');
+const { buildCandidateError, getInterviewConflictCode } = require('../src/services/candidateErrors');
 
 test('candidate error responses expose stable candidate-safe codes', () => {
   const completed = buildCandidateError('INTERVIEW_ALREADY_COMPLETED', { request_id: 'request-1' });

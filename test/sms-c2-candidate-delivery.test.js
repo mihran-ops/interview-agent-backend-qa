@@ -3,13 +3,13 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const { createFakeSmsProvider } = require('../src/lib/smsFakeProvider');
+const { createFakeSmsProvider } = require('../src/services/smsFakeProvider');
 const {
   SMS_CONSENT_COPY_VERSION,
   deliverCandidateSmsOtp,
   normalizeConsentCopyVersion,
   readCandidateSmsConfiguration,
-} = require('../src/lib/candidateSmsDelivery');
+} = require('../src/services/candidateSmsDelivery');
 
 const CHALLENGE_ID = '84000000-0000-4000-8000-000000000001';
 const EXPIRES_AT = '2026-08-16T18:10:00.000Z';

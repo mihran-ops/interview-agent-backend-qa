@@ -6,7 +6,7 @@ const { test } = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { once } = require('node:events');
-const { createProfileRouter, normalizeFullName } = require('../routes/profile');
+const { createProfileRouter, normalizeFullName } = require('../src/routes/client/profile');
 
 const USER_ID = '11111111-1111-4111-8111-111111111111';
 

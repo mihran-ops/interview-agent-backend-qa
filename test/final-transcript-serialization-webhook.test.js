@@ -97,11 +97,11 @@ const RAW_DIAGNOSTIC = [
   PRIVACY_SENTINELS.transcriptHash,
 ].join('|');
 
-const routePath = path.join(__dirname, '..', 'routes', 'webhook.js');
-const scoringPath = path.join(__dirname, '..', 'src', 'lib', 'interviewScoring.js');
-const roleAvailabilityPath = path.join(__dirname, '..', 'src', 'lib', 'roleInterviewAvailability.js');
+const routePath = path.join(__dirname, '..', 'src', 'routes', 'webhooks', 'tavus.js');
+const scoringPath = path.join(__dirname, '..', 'src', 'services', 'interviewScoring.js');
+const roleAvailabilityPath = path.join(__dirname, '..', 'src', 'services', 'roleInterviewAvailability.js');
 const backfillPath = path.join(__dirname, '..', 'scripts', 'backfillInterviews.js');
-const analysisV2Path = path.join(__dirname, '..', 'src', 'lib', 'interviewAnalysisV2.js');
+const analysisV2Path = path.join(__dirname, '..', 'src', 'services', 'interviewAnalysisV2.js');
 
 function injectModule(filename, exports) {
   require.cache[filename] = { id: filename, filename, loaded: true, exports };
@@ -763,7 +763,7 @@ function buildApp(db, buildOptions = {}) {
     }
   }
   Module._load = function patchedLoad(request, parent, isMain) {
-    if (request === '../src/lib/supabaseClient' && /routes\/webhook\.js$/.test(parent?.filename || '')) {
+    if (request === '../src/clients/supabase' && /routes\/webhook\.js$/.test(parent?.filename || '')) {
       return { supabaseAdmin: db, supabase: db };
     }
     if (request === '@sentry/node' && buildOptions.realSentry !== true) {

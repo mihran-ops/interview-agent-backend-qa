@@ -4,7 +4,7 @@ const express = require('express');
 const http = require('node:http');
 const test = require('node:test');
 const WebSocket = require('ws');
-const { createSupportVoiceGateway } = require('../src/lib/supportVoiceGateway');
+const { createSupportVoiceGateway } = require('../src/services/supportVoiceGateway');
 const { createBacking, createMemorySupportVoiceStore } = require('./helpers/supportVoiceTestStore');
 
 const ORIGIN = 'https://alphasourceai-com.onrender.com';

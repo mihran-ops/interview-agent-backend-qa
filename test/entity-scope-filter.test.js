@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const {
   resolveEntityFilter,
   withEntityFields,
-} = require('../src/lib/entityScopeFilter');
+} = require('../src/services/entityScopeFilter');
 
 const CLIENTS = [
   { id: 'parent-1', name: 'Acme Dental', parent_client_id: null, entity_label: 'office' },

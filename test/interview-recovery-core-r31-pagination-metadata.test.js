@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const {
   createTavusReadOnlyProvider,
   reconcileAmbiguousTavusStart,
-} = require('../src/lib/tavusVendorReconciliation');
+} = require('../src/services/tavusVendorReconciliation');
 
 const INTERVIEW_ID = '78000000-0000-4000-8000-000000000001';
 const AUTHORIZATION_ID = '78000000-0000-4000-8000-000000000002';

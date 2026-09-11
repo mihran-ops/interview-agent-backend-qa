@@ -3,9 +3,9 @@
 require('dotenv').config();
 
 const { createClient } = require('@supabase/supabase-js');
-const { tavusHttpClient } = require('../src/lib/tavusHttpClient');
-const { TavusProviderError } = require('../src/lib/tavusHttpClient');
-const { assertQaOnly, classifySyncFailure, synchronizeTavusPronunciation } = require('../src/lib/tavusPronunciationSync');
+const { tavusHttpClient } = require('../src/clients/tavus');
+const { TavusProviderError } = require('../src/clients/tavus');
+const { assertQaOnly, classifySyncFailure, synchronizeTavusPronunciation } = require('../src/services/tavusPronunciationSync');
 
 const APPLY = process.argv.includes('--apply');
 const ENVIRONMENT = String(process.env.APP_ENV || process.env.NODE_ENV || '').trim().toLowerCase();

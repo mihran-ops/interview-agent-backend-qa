@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const projectRoot = path.join(__dirname, '..');
 const authPath = path.join(projectRoot, 'src', 'middleware', 'auth.js');
-const supabaseClientPath = path.join(projectRoot, 'src', 'lib', 'supabaseClient.js');
+const supabaseClientPath = path.join(projectRoot, 'src', 'clients', 'supabase.js');
 
 class AdminQuery {
   constructor(db, table) {

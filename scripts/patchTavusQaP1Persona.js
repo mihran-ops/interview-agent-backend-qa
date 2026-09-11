@@ -1,7 +1,7 @@
 // Manual QA-only script. Do not run against production persona.
 'use strict';
 
-const { createTavusHttpClient } = require('../src/lib/tavusHttpClient');
+const { createTavusHttpClient } = require('../src/clients/tavus');
 
 try {
   require('dotenv').config();

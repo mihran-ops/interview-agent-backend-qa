@@ -2,8 +2,8 @@
 
 // Presentation and lookup helpers behind the admin automation views.
 
-const { resolveEntityFilter } = require('../../lib/entityScopeFilter');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { resolveEntityFilter } = require('../entityScopeFilter');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { uniqueClientIds } = require('../clientScope/clientScope');
 const { trimNullableString } = require('./adminHelpers');
 

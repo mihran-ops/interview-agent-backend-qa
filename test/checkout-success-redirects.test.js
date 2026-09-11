@@ -4,7 +4,7 @@
 // a buyer lands after Stripe returns, and every branch was previously untested.
 //
 // The router is exercised directly rather than through app.js: its four dependencies
-// are stubbed by require.cache injection, and the real config/urlConfig builds the
+// are stubbed by require.cache injection, and the real src/config/urlConfig builds the
 // URLs so the assertions pin the actual redirect targets.
 
 const assert = require('node:assert/strict');
@@ -17,11 +17,11 @@ const ROOT = path.join(__dirname, '..');
 const FRONTEND = 'https://frontend.test';
 
 const routerPath = path.join(ROOT, 'src', 'routes', 'public', 'checkoutSuccess.js');
-const stripeClientPath = path.join(ROOT, 'lib', 'stripeClient.js');
-const supabaseClientPath = path.join(ROOT, 'src', 'lib', 'supabaseClient.js');
-const activationPath = path.join(ROOT, 'src', 'lib', 'publicPurchaseActivation.js');
+const stripeClientPath = path.join(ROOT, 'src', 'clients', 'stripe.js');
+const supabaseClientPath = path.join(ROOT, 'src', 'clients', 'supabase.js');
+const activationPath = path.join(ROOT, 'src', 'services', 'publicPurchaseActivation.js');
 const provisioningPath = path.join(ROOT, 'src', 'services', 'users', 'userProvisioning.js');
-const urlConfigPath = path.join(ROOT, 'config', 'urlConfig.js');
+const urlConfigPath = path.join(ROOT, 'src', 'config', 'urlConfig.js');
 
 function injectModule(filename, exports) {
   require.cache[filename] = { id: filename, filename, loaded: true, exports };

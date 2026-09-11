@@ -14,13 +14,13 @@ process.env.OPENAI_API_KEY ||= 'unit-test-openai-key';
 const {
   RoleJdReplacementError,
   createRoleJdReplacementService
-} = require('../src/lib/roleJdReplacement');
-const { createRoleJdReplacementRouter } = require('../routes/roleJdReplacement');
-const { getPlanCapacity } = require('../src/lib/planCapacity');
+} = require('../src/services/roleJdReplacement');
+const { createRoleJdReplacementRouter } = require('../src/routes/client/roleJdReplacement');
+const { getPlanCapacity } = require('../src/services/planCapacity');
 const {
   buildFallbackRubric,
   generateJdDerivedArtifactsForRole
-} = require('../generateRubric');
+} = require('../src/services/generateRubric');
 
 const ROLE_ID = '11111111-1111-4111-8111-111111111111';
 const CLIENT_ID = '22222222-2222-4222-8222-222222222222';
@@ -782,8 +782,8 @@ test('migration creates protected history, ensures Tavus column, and atomically 
 });
 
 test('route and service do not contain storage or Tavus deletion calls', () => {
-  const serviceSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'roleJdReplacement.js'), 'utf8');
-  const routeSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'roleJdReplacement.js'), 'utf8');
+  const serviceSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'roleJdReplacement.js'), 'utf8');
+  const routeSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'client', 'roleJdReplacement.js'), 'utf8');
   assert.doesNotMatch(serviceSource, /\.remove\s*\(|deleteTavus|\/documents\//i);
   assert.doesNotMatch(routeSource, /\.remove\s*\(|deleteTavus|\/documents\//i);
 });

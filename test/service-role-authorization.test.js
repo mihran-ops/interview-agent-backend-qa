@@ -20,7 +20,7 @@ const {
   requireReportAccess,
   requireRoleAccess,
   safeStorageObjectPath,
-} = require('../src/lib/serviceRoleAuthorization');
+} = require('../src/services/serviceRoleAuthorization');
 
 const ID = Object.freeze({
   parent: '77000000-0000-4000-8000-000000000001',
@@ -189,13 +189,25 @@ test('storage authorization rejects traversal and foreign request paths', () => 
 
 test('static guard keeps runtime service-role construction centralized and classifies dormant candidates router', () => {
   const root = path.resolve(__dirname, '..');
-  const runtimeFiles = [
-    'analyzeResume.js',
-    'generateRubric.js',
-    ...fs.readdirSync(path.join(root, 'handlers')).filter((name) => name.endsWith('.js')).map((name) => `handlers/${name}`),
-    ...fs.readdirSync(path.join(root, 'routes')).filter((name) => name.endsWith('.js')).map((name) => `routes/${name}`),
-    ...fs.readdirSync(path.join(root, 'utils')).filter((name) => name.endsWith('.js')).map((name) => `utils/${name}`),
-  ];
+  // handlers/, routes/ and utils/ are gone; the runtime now lives entirely under src/.
+  // src/clients/supabase.js is the one place allowed to read the service-role key, and
+  // the two health and metrics modules only report on whether it is configured.
+  const ALLOWED = new Set([
+    'src/clients/supabase.js',
+    'src/health/supabaseHealth.js',
+    'src/services/adminMetricsService.js',
+  ]);
+  const runtimeFiles = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+      const relative = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(relative);
+      else if (entry.name.endsWith('.js') && !ALLOWED.has(relative)) runtimeFiles.push(relative);
+    }
+  };
+  for (const dir of ['src/routes', 'src/services', 'src/clients', 'src/render', 'src/health', 'src/middleware', 'src/config']) {
+    walk(dir);
+  }
   const violations = [];
   for (const relative of runtimeFiles) {
     const source = fs.readFileSync(path.join(root, relative), 'utf8');
@@ -203,7 +215,7 @@ test('static guard keeps runtime service-role construction centralized and class
   }
   assert.deepEqual(violations, []);
   const appSource = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
-  assert.doesNotMatch(appSource, /require\(['"]\.\/routes\/candidates['"]\)/);
-  const dormantSource = fs.readFileSync(path.join(root, 'routes', 'candidates.js'), 'utf8');
+  assert.doesNotMatch(appSource, /require\(['"]\.\/src\/routes\/client\/candidates['"]\)/);
+  const dormantSource = fs.readFileSync(path.join(root, 'src', 'routes', 'client', 'candidates.js'), 'utf8');
   assert.match(dormantSource, /router\.get\('\/by-role\/:roleId'/);
 });

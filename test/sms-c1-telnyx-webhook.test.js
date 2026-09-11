@@ -5,8 +5,8 @@ const crypto = require('node:crypto');
 const express = require('express');
 const { test } = require('node:test');
 
-const { createTelnyxSmsWebhookRouter } = require('../routes/webhookTelnyxSms');
-const { parseTelnyxWebhook } = require('../src/lib/telnyxWebhook');
+const { createTelnyxSmsWebhookRouter } = require('../src/routes/webhooks/telnyx');
+const { parseTelnyxWebhook } = require('../src/services/telnyxWebhook');
 
 const NOW_MS = Date.parse('2026-08-12T12:00:00.000Z');
 const TIMESTAMP = String(Math.floor(NOW_MS / 1000));

@@ -8,7 +8,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const { after, before, test } = require('node:test');
 const {
   validateTranscriptScores,
-} = require('../src/lib/finalTranscriptReconciliation');
+} = require('../src/services/finalTranscriptReconciliation');
 
 const ENABLED = process.env.FINAL_TRANSCRIPT_SERIALIZATION_DISPOSABLE === 'true';
 const PREFIX = 'alphascreen_final_transcript_serialization_';

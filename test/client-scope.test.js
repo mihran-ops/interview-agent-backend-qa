@@ -7,7 +7,7 @@ const {
   canCreateRolesForClient,
   canManageMembersForClient,
   canViewLegalBillingForClient,
-} = require('../src/lib/clientScope');
+} = require('../src/services/clientScope');
 
 test('manager parent membership gets retail buyer dashboard permissions and child scope', () => {
   const context = buildClientScopeContext({

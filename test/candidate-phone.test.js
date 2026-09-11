@@ -9,7 +9,7 @@ const {
   normalizeCandidatePhoneE164,
   isValidCandidatePhone,
   getCandidatePhoneValidationMessage
-} = require('../src/lib/candidatePhone');
+} = require('../src/services/candidatePhone');
 
 test('candidate phone validation accepts supported US formats', () => {
   for (const value of [

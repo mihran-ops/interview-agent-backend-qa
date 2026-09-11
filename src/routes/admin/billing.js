@@ -3,10 +3,10 @@
 // Stripe checkout, subscription and invoice actions for a client. Mounted on the admin router.
 
 const express = require('express');
-const { buildAdminDashboardUrl, buildClientDashboardReturnUrl } = require('../../../config/urlConfig');
-const { sendSubscriptionCheckoutEmail } = require('../../../utils/mailer');
-const { createSubscriptionCheckoutSession } = require('../../lib/subscriptionCheckout');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildAdminDashboardUrl, buildClientDashboardReturnUrl } = require('../../config/urlConfig');
+const { sendSubscriptionCheckoutEmail } = require('../../clients/sendgrid');
+const { createSubscriptionCheckoutSession } = require('../../services/subscriptionCheckout');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { rejectChildClientForAdminBilling } = require('../../services/admin/adminHelpers');
@@ -97,7 +97,7 @@ router.post('/clients/:id/billing/checkout-session', requireAuth, requireAdmin, 
   }
 
   try {
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
     let stripeCustomerId = client.stripe_customer_id || null
 
     if (!stripeCustomerId) {
@@ -280,7 +280,7 @@ router.post('/clients/:id/subscription-invoice', requireAuth, requireAdmin, asyn
   if (!billingCustomer) return res.status(400).json({ error: 'missing_billing_customer' })
 
   try {
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
     const candidateStripeCustomerIds = []
     for (const row of billingCustomerList) {
       const id = String(row?.stripe_customer_id || '').trim()

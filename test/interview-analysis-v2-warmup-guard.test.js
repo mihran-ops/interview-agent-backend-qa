@@ -6,12 +6,12 @@ const { test } = require('node:test');
 
 process.env.ENABLE_INTERVIEW_ANALYSIS_V2 = 'true';
 
-const analysisV2Path = require.resolve('../src/lib/interviewAnalysisV2');
+const analysisV2Path = require.resolve('../src/services/interviewAnalysisV2');
 const actualAnalysisV2 = require(analysisV2Path);
 const sentryPath = require.resolve('@sentry/node');
-const supabaseClientPath = require.resolve('../src/lib/supabaseClient');
+const supabaseClientPath = require.resolve('../src/clients/supabase');
 const backfillPath = require.resolve('../scripts/backfillInterviews.js');
-const tavusHttpClientPath = require.resolve('../src/lib/tavusHttpClient');
+const tavusHttpClientPath = require.resolve('../src/clients/tavus');
 
 let activeTracker = null;
 
@@ -72,7 +72,7 @@ require.cache[tavusHttpClientPath] = {
   },
 };
 
-const router = require('../routes/webhook');
+const router = require('../src/routes/webhooks/tavus');
 const {
   analysisV2Eligibility,
   maybeGenerateInterviewAnalysisV2,

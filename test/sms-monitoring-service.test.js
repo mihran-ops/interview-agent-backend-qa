@@ -7,7 +7,7 @@ const {
   normalizeClientId,
   normalizeRange,
   runtimePosture,
-} = require('../src/lib/smsMonitoringService');
+} = require('../src/services/smsMonitoringService');
 
 const CLIENT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 

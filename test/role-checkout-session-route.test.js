@@ -7,41 +7,41 @@ const path = require('node:path')
 const { test } = require('node:test')
 
 const appPath = path.join(__dirname, '..', 'app.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
 const authPath = path.join(__dirname, '..', 'src', 'middleware', 'auth.js')
-const generateRubricPath = path.join(__dirname, '..', 'generateRubric.js')
+const generateRubricPath = path.join(__dirname, '..', 'src', 'services', 'generateRubric.js')
 const stripePath = require.resolve('stripe')
-// The app now takes its Stripe client from lib/stripeClient.js, which caches the
+// The app now takes its Stripe client from src/clients/stripe.js, which caches the
 // constructed instance; it must be dropped too so each build sees this test's stub.
-const stripeClientPath = path.join(__dirname, '..', 'lib', 'stripeClient.js')
+const stripeClientPath = path.join(__dirname, '..', 'src', 'clients', 'stripe.js')
 const dotenvPath = require.resolve('dotenv')
 
 const ROUTE_STUBS = [
-  'routes/dashboard.js',
-  'routes/roles.js',
-  'routes/automation.js',
-  'routes/webhookStripe.js',
-  'routes/webhookSendgrid.js',
-  'routes/webhook.js',
-  'routes/candidateSubmit.js',
-  'routes/verifyOtp.js',
-  'routes/createTavusInterview.js',
-  'routes/accommodationRequests.js',
-  'routes/textInterview.js',
-  'routes/clientMembersScoped.js',
-  'routes/feedback.js',
-  'routes/alphaScreenPackages.js',
-  'routes/publicAnalytics.js',
-  'routes/publicLeads.js',
-  'routes/adminBilling.js',
-  'routes/kb.js',
-  'routes/tavus.js',
-  'routes/publicInterviewStatus.js',
-  'routes/membershipAgreementsPublic.js',
-  'routes/rolesUpload.js',
-  'routes/files.js',
-  'routes/reports.js',
-  'routes/reportsPdf.js'
+  'src/routes/client/dashboardRouter.js',
+  'src/routes/client/roles.js',
+  'src/routes/automation/index.js',
+  'src/routes/webhooks/stripe.js',
+  'src/routes/webhooks/sendgrid.js',
+  'src/routes/webhooks/tavus.js',
+  'src/routes/public/candidateSubmit.js',
+  'src/routes/public/verifyOtp.js',
+  'src/routes/public/createTavusInterview.js',
+  'src/routes/public/accommodationRequests.js',
+  'src/routes/public/textInterview.js',
+  'src/routes/client/members.js',
+  'src/routes/client/feedback.js',
+  'src/routes/public/alphascreen/index.js',
+  'src/routes/public/analytics.js',
+  'src/routes/public/leads.js',
+  'src/routes/admin/billingRouter.js',
+  'src/routes/client/kb.js',
+  'src/routes/public/tavus.js',
+  'src/routes/public/interviewStatus.js',
+  'src/routes/public/membershipAgreements/index.js',
+  'src/routes/client/rolesUpload.js',
+  'src/routes/client/files.js',
+  'src/routes/client/reports.js',
+  'src/routes/client/reportsPdf.js'
 ]
 
 function injectModule(filename, exports) {

@@ -8,9 +8,9 @@ const express = require('express');
 
 const projectRoot = path.resolve(__dirname, '..');
 const routePath = path.join(projectRoot, 'src', 'routes', 'automation', 'index.js');
-const supabaseClientPath = path.join(projectRoot, 'src', 'lib', 'supabaseClient.js');
+const supabaseClientPath = path.join(projectRoot, 'src', 'clients', 'supabase.js');
 const authMiddlewarePath = path.join(projectRoot, 'src', 'middleware', 'auth.js');
-const mailerPath = path.join(projectRoot, 'utils', 'mailer.js');
+const mailerPath = path.join(projectRoot, 'src', 'clients', 'sendgrid.js');
 
 const baseRule = {
   id: 'rule-1',

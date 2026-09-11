@@ -11,9 +11,9 @@ const CLIENT_ID = '11111111-1111-4111-8111-111111111111';
 const ROLE_ID = '22222222-2222-4222-8222-222222222222';
 const previousInternalSyntheticClientIds = process.env.INTERNAL_SYNTHETIC_INTERVIEW_CLIENT_IDS;
 
-const routePath = path.join(__dirname, '..', 'routes', 'publicInterviewStatus.js');
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js');
-const rateLimitPath = path.join(__dirname, '..', 'src', 'lib', 'rateLimit.js');
+const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'interviewStatus.js');
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js');
+const rateLimitPath = path.join(__dirname, '..', 'src', 'services', 'rateLimit.js');
 
 function injectModule(filename, exports) {
   require.cache[filename] = {

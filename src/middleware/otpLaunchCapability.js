@@ -1,7 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
-const { getOtpSecret } = require('../lib/otpChallenge');
+const { getOtpSecret } = require('../services/otpChallenge');
 
 const COOKIE_NAME = '__Host-alphascreen_otp_launch';
 const HEADER_NAME = 'x-alphascreen-otp-launch';

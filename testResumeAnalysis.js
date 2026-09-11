@@ -1,5 +1,5 @@
 const path = require('path');
-const analyzeResume = require('./analyzeResume');
+const analyzeResume = require('./src/services/analyzeResume');
 
 const candidate = {
   id: '201ad371-c8b5-4be4-81a3-38289017a6c6',

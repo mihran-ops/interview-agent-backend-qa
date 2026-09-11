@@ -17,10 +17,10 @@ const {
   getAlphaScreenStripePriceId,
   listPublicAlphaScreenPackages,
   normalizeAlphaScreenPlanKey
-} = require('../src/lib/alphaScreenPackages')
+} = require('../src/services/alphaScreenPackages')
 
 const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'alphascreen', 'index.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
 const STALE_ANNUAL_PRICE_PATTERN = new RegExp([
   String(3229 + 0.2).replace('.', '\\.'),
   String(322900 + 20),

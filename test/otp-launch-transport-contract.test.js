@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
-const { redactOtpLaunchTelemetry } = require('../src/lib/otpLaunchTelemetry');
+const { redactOtpLaunchTelemetry } = require('../src/services/otpLaunchTelemetry');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
 

@@ -3,8 +3,8 @@
 // Child client entities under a parent client. Mounted on the admin router.
 
 const express = require('express');
-const { archiveChildClientEntity, restoreChildClientEntity } = require('../../lib/clientEntityArchive');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { archiveChildClientEntity, restoreChildClientEntity } = require('../../services/clientEntityArchive');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const {

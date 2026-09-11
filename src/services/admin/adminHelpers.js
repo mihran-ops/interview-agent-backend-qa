@@ -2,8 +2,8 @@
 
 // Shared admin helpers, moved out of app.js unchanged.
 
-const { requireParentClient } = require('../../lib/clientBillingScope');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { requireParentClient } = require('../clientBillingScope');
+const { supabaseAdmin } = require('../../clients/supabase');
 
 function trimNullableString(value) {
   const text = String(value ?? '').trim()

@@ -3,10 +3,10 @@
 // Client member administration and password recovery. Mounted on the admin router.
 
 const express = require('express');
-const { buildClientPwResetUrl } = require('../../../config/urlConfig');
-const { sendMemberRecoveryEmail } = require('../../../utils/mailer');
-const { loadEntityMap, resolveEntityFilter, withEntityFields } = require('../../lib/entityScopeFilter');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildClientPwResetUrl } = require('../../config/urlConfig');
+const { sendMemberRecoveryEmail } = require('../../clients/sendgrid');
+const { loadEntityMap, resolveEntityFilter, withEntityFields } = require('../../services/entityScopeFilter');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { ensureUserIdAndRecoveryLink } = require('../../services/users/userProvisioning');

@@ -7,7 +7,7 @@ const {
   createCandidateSubmitLifecycle,
   createCandidateUploadMiddleware,
   markCandidateSubmitStage,
-} = require('../src/lib/candidateSubmitLifecycle');
+} = require('../src/services/candidateSubmitLifecycle');
 
 function request(headers = {}) {
   const req = new EventEmitter();

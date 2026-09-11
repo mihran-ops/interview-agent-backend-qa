@@ -94,23 +94,23 @@ test('R1 red report regression: an unbound attempt-one report is rejected for ex
   let renderedPayload = null;
   const originalLoad = Module._load;
   Module._load = function patchedLoad(request, parent, isMain) {
-    if (request === '../src/lib/supabaseClient' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
+    if (request === '../src/clients/supabase' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
       return { supabaseAdmin: db, supabase: db };
     }
-    if (request === '../utils/pdfRenderer' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
+    if (request === '../src/render/pdfRenderer' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
       return { htmlToPdf: async (html) => Buffer.from(html) };
     }
-    if (request === '../utils/renderCandidateReport' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
+    if (request === '../src/render/candidateReport' && /routes\/reportsPdf\.js$/.test(parent?.filename || '')) {
       return { buildCandidateReportHtml: (payload) => { renderedPayload = payload; return JSON.stringify(payload); } };
     }
     return originalLoad.call(this, request, parent, isMain);
   };
   process.env.SUPABASE_URL = 'http://127.0.0.1:54321';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key';
-  const routePath = require.resolve('../routes/reportsPdf');
+  const routePath = require.resolve('../src/routes/client/reportsPdf');
   delete require.cache[routePath];
   try {
-    const router = require('../routes/reportsPdf');
+    const router = require('../src/routes/client/reportsPdf');
     const res = fakeResponse();
     await router._handleGenerate({
       body: { candidate_id: ID.candidate, interview_id: ID.replacementInterview, report_id: ID.legacyReport },
@@ -143,7 +143,7 @@ test('R1 red Tavus regression: transmitted timeout is classified ambiguous and u
       throw error;
     },
   };
-  const { createTavusInterviewHandler } = require('../handlers/createTavusInterview');
+  const { createTavusInterviewHandler } = require('../src/services/tavusInterview');
   const error = await createTavusInterviewHandler(
     { id: ID.candidate, name: 'Synthetic' },
     { id: ID.role, title: 'Synthetic role', tavus_document_id: 'document-test' },

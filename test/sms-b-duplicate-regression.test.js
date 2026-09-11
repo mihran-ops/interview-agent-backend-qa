@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const { checkDuplicateCandidate } = require('../src/lib/duplicateCandidate');
+const { checkDuplicateCandidate } = require('../src/services/duplicateCandidate');
 
 function fakeSupabase(rows = []) {
   const calls = [];

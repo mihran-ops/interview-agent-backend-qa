@@ -6,7 +6,7 @@ const {
   CandidateSubmissionKeyError,
   normalizeSubmissionKey,
   reserveCandidateSubmission
-} = require('../src/lib/candidateSubmissionIdempotency');
+} = require('../src/services/candidateSubmissionIdempotency');
 
 const ROLE_ID = '11111111-1111-4111-8111-111111111111';
 const SUBMISSION_KEY = '550e8400-e29b-41d4-a716-446655440000';

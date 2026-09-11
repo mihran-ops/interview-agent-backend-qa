@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { hasAnyActiveClientMembership } = require('../src/lib/supportVoiceMembership');
+const { hasAnyActiveClientMembership } = require('../src/services/supportVoiceMembership');
 
 function serviceDbFixture(results) {
   const calls = [];

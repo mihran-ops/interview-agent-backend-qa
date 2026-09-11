@@ -3,8 +3,8 @@
 // Admin dashboard metrics. Mounted on the admin router.
 
 const express = require('express');
-const { buildAdminMetricsPayload, safeErrorBody } = require('../../lib/adminMetricsService');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildAdminMetricsPayload, safeErrorBody } = require('../../services/adminMetricsService');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { sendAdminError } = require('../../services/admin/adminHelpers');

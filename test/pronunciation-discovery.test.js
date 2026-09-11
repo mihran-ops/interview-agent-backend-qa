@@ -2,7 +2,7 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { discoverPronunciationCandidates } = require('../src/lib/pronunciationDiscovery');
+const { discoverPronunciationCandidates } = require('../src/services/pronunciationDiscovery');
 
 test('role title, JD, and rubric scanning detects dental terms and acronyms', () => {
   const results = discoverPronunciationCandidates({

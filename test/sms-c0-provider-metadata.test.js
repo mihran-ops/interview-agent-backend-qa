@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
-const { recordOtpSmsDeliveryMetadata } = require('../src/lib/otpChallenge');
+const { recordOtpSmsDeliveryMetadata } = require('../src/services/otpChallenge');
 
 test('trusted wrapper records accepted provider-neutral metadata without a private-table write', async () => {
   let invocation = null;

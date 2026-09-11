@@ -6,39 +6,39 @@
 // other directly.
 
 const express = require('express');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
-const mailer = require('../../../utils/mailer');
+const { supabaseAdmin } = require('../../clients/supabase');
+const mailer = require('../../clients/sendgrid');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const {
   buildClientScopeContext,
   canCreateRolesForClient
-} = require('../../lib/clientScope');
+} = require('../clientScope');
 const {
   evaluateCandidateAutomation,
   normalizeCriteriaConfig,
   stableStringify
-} = require('../../lib/candidateAutomationEvaluator');
+} = require('../candidateAutomationEvaluator');
 const {
   createPendingAutomationAction,
   listAutomationActions,
   listAutomationActionEvents,
   writeAutomationActionEvent,
   sendApprovedAutomationActionSchedulingEmail
-} = require('../../lib/automationActions');
+} = require('../automationActions');
 const {
   createApprovalTokenForAction,
   loadApprovalTokenContext,
   markApprovalTokenViewed,
   rejectActionFromApprovalToken,
   confirmActionFromApprovalToken
-} = require('../../lib/automationApprovalTokens');
+} = require('../automationApprovalTokens');
 const {
   buildDigestApprovalItemId,
   createDigestApprovalTokenForDelivery,
   revokeDigestApprovalTokenForDelivery,
   loadDigestApprovalTokenContext,
   markDigestApprovalTokenViewed
-} = require('../../lib/automationDigestApprovalTokens');
+} = require('../automationDigestApprovalTokens');
 
 const db = supabaseAdmin;
 const DEFAULT_PENDING_APPROVAL_DIGEST_TIMEZONE = 'America/Denver';

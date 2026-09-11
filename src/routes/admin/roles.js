@@ -3,13 +3,13 @@
 // Role administration, including rubric and interview configuration. Mounted on the admin router.
 
 const express = require('express');
-const { generateRubricAndKBForRole, makeKBFromRubric } = require('../../../generateRubric');
-const { ensureTavusDocumentForRole } = require('../../../lib/tavusDocuments');
-const { loadEntityMap, resolveEntityFilter, withEntityFields } = require('../../lib/entityScopeFilter');
-const { normalizeInterviewType, normalizeRoleInterviewTypeForRead } = require('../../lib/interviewTypes');
-const { getRoleInterviewAvailability } = require('../../lib/roleInterviewAvailability');
-const { getRoleJdReplacementEligibility } = require('../../lib/roleJdReplacement');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { generateRubricAndKBForRole, makeKBFromRubric } = require('../../services/generateRubric');
+const { ensureTavusDocumentForRole } = require('../../services/tavusDocuments');
+const { loadEntityMap, resolveEntityFilter, withEntityFields } = require('../../services/entityScopeFilter');
+const { normalizeInterviewType, normalizeRoleInterviewTypeForRead } = require('../../services/interviewTypes');
+const { getRoleInterviewAvailability } = require('../../services/roleInterviewAvailability');
+const { getRoleJdReplacementEligibility } = require('../../services/roleJdReplacement');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 

@@ -4,7 +4,7 @@
 // the admin route and the internal cron route, which is why it is a service rather
 // than living with either router.
 
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { supabaseAdmin } = require('../../clients/supabase');
 
 function addMonthsToIso(isoString, monthsToAdd = 12) {
   const base = new Date(isoString)
@@ -46,7 +46,7 @@ async function processContractRenewals(context = {}) {
     try {
       const stripeKey = String(process.env.STRIPE_SECRET_KEY || '')
       if (stripeKey) {
-        stripe = require('../../../lib/stripeClient')
+        stripe = require('../../clients/stripe')
       }
     } catch (_) {}
 

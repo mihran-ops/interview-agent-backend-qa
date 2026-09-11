@@ -10,20 +10,20 @@ function read(relativePath) {
 }
 
 test('candidate OTP issuance does not use Math.random or persist plaintext codes', () => {
-  const source = read('routes/candidateSubmit.js');
+  const source = read('src/routes/public/candidateSubmit.js');
   assert.doesNotMatch(source, /Math\.random\s*\(/);
   assert.doesNotMatch(source, /\.from\(['"]otp_tokens['"]\)\.insert/);
 });
 
 test('OTP verification is challenge-addressed and never compares a stored plaintext code', () => {
-  const source = read('routes/verifyOtp.js');
+  const source = read('src/routes/public/verifyOtp.js');
   assert.match(source, /challenge_id/);
   assert.doesNotMatch(source, /token\.code/);
   assert.doesNotMatch(source, /select\(['"][^'"]*\bcode\b/);
 });
 
 test('interview launch is protected by an HttpOnly launch capability', () => {
-  const source = read('routes/createTavusInterview.js');
+  const source = read('src/routes/public/createTavusInterview.js');
   assert.match(source, /requireOtpLaunchCapability/);
   assert.match(source, /clearOtpLaunchCapability/);
 });

@@ -7,8 +7,8 @@ const path = require('node:path')
 const { test } = require('node:test')
 
 const projectRoot = path.resolve(__dirname, '..')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
-const mailerPath = path.join(projectRoot, 'utils', 'mailer.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
+const mailerPath = path.join(projectRoot, 'src', 'clients', 'sendgrid.js')
 const sendgridMailPath = require.resolve('@sendgrid/mail')
 require.cache[supabaseClientPath] = {
   id: supabaseClientPath,
@@ -24,8 +24,8 @@ require.cache[supabaseClientPath] = {
 const {
   activatePublicPurchaseAgreementCheckout,
   resolvePublicCheckoutReturnState
-} = require('../src/lib/publicPurchaseActivation')
-const { buildAlphaScreenPackageSnapshot } = require('../src/lib/alphaScreenPackages')
+} = require('../src/services/publicPurchaseActivation')
+const { buildAlphaScreenPackageSnapshot } = require('../src/services/alphaScreenPackages')
 
 const AGREEMENT_ID = '33333333-3333-4333-8333-333333333333'
 const INTENT_ID = '11111111-1111-4111-8111-111111111111'

@@ -17,7 +17,7 @@ const {
   buildConversationalContext,
   createTavusInterviewHandler,
   resolveSilenceEngagementOwner,
-} = require('../handlers/createTavusInterview');
+} = require('../src/services/tavusInterview');
 
 const INTERVIEW_ID = '81000000-0000-4000-8000-000000000001';
 const ENV_KEYS = [
@@ -199,7 +199,7 @@ test('application inactivity is snapshotted in the immutable conversation result
 });
 
 test('create route returns only the server snapshot and never reads ownership from the request', () => {
-  const source = readFileSync(join(__dirname, '..', 'routes', 'createTavusInterview.js'), 'utf8');
+  const source = readFileSync(join(__dirname, '..', 'src', 'routes', 'public', 'createTavusInterview.js'), 'utf8');
   assert.match(source, /silence_engagement_owner: result\.silence_engagement_owner/);
   assert.match(source, /application_inactivity_control_enabled: result\.application_inactivity_control_enabled/);
   assert.doesNotMatch(source, /req\.body\.(?:silence_engagement_owner|application_inactivity_control_enabled)/);

@@ -10,7 +10,7 @@ const {
   extractCanonicalTavusConversationId,
   getOwnPath,
   validateTavusWebhookPayload,
-} = require('../src/lib/tavusWebhookPayload');
+} = require('../src/services/tavusWebhookPayload');
 
 const CONVERSATION_ID = 'c-synthetic_valid-123';
 

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 
 const {
   extractCandidateQuestions,
-} = require('../src/lib/unansweredCandidateQuestions');
+} = require('../src/services/unansweredCandidateQuestions');
 
 const closing = {
   role: 'assistant',

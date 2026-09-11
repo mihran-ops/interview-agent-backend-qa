@@ -8,8 +8,8 @@ const projectRoot = path.resolve(__dirname, '..')
 const { test } = require('node:test')
 
 const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'alphascreen', 'index.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
-const rateLimitPath = path.join(__dirname, '..', 'src', 'lib', 'rateLimit.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
+const rateLimitPath = path.join(__dirname, '..', 'src', 'services', 'rateLimit.js')
 const STALE_ANNUAL_PRICE_PATTERN = new RegExp([
   String(3229 + 0.2).replace('.', '\\.'),
   String(322900 + 20),

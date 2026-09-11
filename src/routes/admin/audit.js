@@ -3,7 +3,7 @@
 // Read-only audit views over processing runs, deliveries and agreements. Mounted on the admin router.
 
 const express = require('express');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 

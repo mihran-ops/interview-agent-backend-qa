@@ -12,7 +12,7 @@ process.env.SENDGRID_FROM = 'qa@example.test';
 process.env.OTP_HMAC_SECRET_VERSION = '1';
 process.env.OTP_HMAC_SECRET_V1 = Buffer.alloc(32, 31).toString('base64');
 
-const otp = require('../src/lib/otpChallenge');
+const otp = require('../src/services/otpChallenge');
 
 const ID = {
   challenge: '83000000-0000-4000-8000-000000000001',
@@ -147,12 +147,12 @@ let sentCodes;
 before(async () => {
   db = buildDb();
   sentCodes = [];
-  install('../src/lib/supabaseClient', { supabase: db, supabaseAdmin: db });
-  install('../src/lib/roleInterviewAvailability', {
+  install('../src/clients/supabase', { supabase: db, supabaseAdmin: db });
+  install('../src/services/roleInterviewAvailability', {
     getRoleInterviewAvailability: async () => ({ remaining_interviews: 3 }),
     syncRoleInterviewLimitNotification: async () => {},
   });
-  install('../src/lib/rateLimit', {
+  install('../src/services/rateLimit', {
     getRequestSubjectKey: () => 'synthetic',
     checkAndIncrementRateLimit: async () => ({ allowed: true }),
   });
@@ -163,11 +163,11 @@ before(async () => {
     if (match) sentCodes.push(match[1]);
     return [{ statusCode: 202 }];
   };
-  delete require.cache[require.resolve('../routes/verifyOtp')];
+  delete require.cache[require.resolve('../src/routes/public/verifyOtp')];
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => { req.request_id = 'otp-route-test'; next(); });
-  app.use('/api/candidate/verify-otp', require('../routes/verifyOtp'));
+  app.use('/api/candidate/verify-otp', require('../src/routes/public/verifyOtp'));
   server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
   base = `http://127.0.0.1:${server.address().port}/api/candidate/verify-otp`;

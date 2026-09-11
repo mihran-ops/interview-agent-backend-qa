@@ -5,7 +5,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const test = require('node:test')
 
-const { createFakeSmsProvider } = require('../src/lib/smsFakeProvider')
+const { createFakeSmsProvider } = require('../src/services/smsFakeProvider')
 const {
   RETAIL_SMS_CONSENT_COPY_VERSION,
   consumeRetailSignupSmsOtp,
@@ -14,7 +14,7 @@ const {
   normalizeRetailPhone,
   readRetailSmsConfiguration,
   retailSmsVerifierHmac,
-} = require('../src/lib/retailSmsVerification')
+} = require('../src/services/retailSmsVerification')
 
 const INTENT_ID = '870f3ec7-5f4c-4aa6-8ed7-0bc3fd00a184'
 const OTP_SECRET = 'retail-sms-test-secret-that-is-at-least-thirty-two-bytes'

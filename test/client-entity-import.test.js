@@ -2,12 +2,12 @@
 
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { validateClientEntityImportRows } = require('../src/lib/clientEntityImport');
+const { validateClientEntityImportRows } = require('../src/services/clientEntityImport');
 const {
   assignImportedEntityMember,
   generateTemporaryPassword,
   processClientEntityImport,
-} = require('../src/lib/clientEntityImportService');
+} = require('../src/services/clientEntityImportService');
 
 class FakeQuery {
   constructor(db, table) {

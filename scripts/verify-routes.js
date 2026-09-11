@@ -42,16 +42,17 @@ const deps = { supabase, auth: requireAuth, withClientScope, buckets: {
   kbs: process.env.SUPABASE_KB_BUCKET || 'kbs',
 }};
 
+// Paths are relative to src/routes/ now that the routers are grouped by audience.
 const names = [
-  'clients','roles','candidates','candidateSubmit','reports','dashboard',
-  'files','rolesUpload','webhook','webhookStripe','createTavusInterview',
-  'retryInterview','verifyOtp','kb'
+  'client/roles', 'client/candidates', 'public/candidateSubmit', 'client/reports',
+  'client/dashboardRouter', 'client/files', 'client/rolesUpload', 'webhooks/tavus',
+  'webhooks/stripe', 'public/createTavusInterview', 'public/verifyOtp', 'client/kb'
 ];
 
 let ok = true;
 for (const n of names) {
   try {
-    const mod = require(path.resolve(__dirname, '..', 'routes', n));
+    const mod = require(path.resolve(__dirname, '..', 'src', 'routes', n));
     const router = coerce(mod, deps);
     if (!router) { console.error(`[X] ${n}: not exporting/mounting a router (instance or factory)`); ok = false; }
     else { console.log(`[✓] ${n}: OK`); }

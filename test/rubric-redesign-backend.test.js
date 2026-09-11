@@ -15,13 +15,13 @@ const {
   getPlanCapacity,
   normalizeMembershipLevel,
   resolvePlanCapacity,
-} = require('../src/lib/planCapacity');
+} = require('../src/services/planCapacity');
 const {
   CANONICAL_INTERVIEW_TYPES,
   getInterviewTypeConfig,
   normalizeInterviewType,
   normalizeRoleInterviewTypeForRead,
-} = require('../src/lib/interviewTypes');
+} = require('../src/services/interviewTypes');
 const {
   GENERIC_FILLER_PATTERNS,
   PROHIBITED_QUESTION_PATTERNS,
@@ -29,11 +29,11 @@ const {
   buildRubricPrompt,
   resolveMembershipLevelForRole,
   validateRubric,
-} = require('../generateRubric');
+} = require('../src/services/generateRubric');
 const {
   buildCustomGreeting,
   buildConversationalContext,
-} = require('../handlers/createTavusInterview');
+} = require('../src/services/tavusInterview');
 const {
   INTRODUCTION_BODY,
   WARMUP_QUESTION,
@@ -41,10 +41,10 @@ const {
   excludeWarmupFromTranscript,
   excludeWarmupFromTranscriptItems,
   prepareEvaluativeTranscript,
-} = require('../src/lib/warmupExclusion');
+} = require('../src/services/warmupExclusion');
 const {
   classifyTranscriptCandidateEvidence,
-} = require('../src/lib/interviewUtteranceClassifier');
+} = require('../src/services/interviewUtteranceClassifier');
 const {
   ROLE_RUBRIC_SCORING_VERSION,
   averageScorableQuestionScores,
@@ -52,15 +52,15 @@ const {
   normalizeQuestionEvaluations,
   normalizeRoleScoringContext,
   scoreInterview,
-} = require('../src/lib/interviewScoring');
+} = require('../src/services/interviewScoring');
 const {
   buildInterviewAnalysisV2Prompt,
-} = require('../src/lib/interviewAnalysisV2');
+} = require('../src/services/interviewAnalysisV2');
 const {
   PROVIDER_CLOSING_GRACE_SECONDS,
   resolveProviderMaxCallDurationSeconds,
-} = require('../src/lib/interviewDuration');
-const { extractCandidateQuestions } = require('../src/lib/unansweredCandidateQuestions');
+} = require('../src/services/interviewDuration');
+const { extractCandidateQuestions } = require('../src/services/unansweredCandidateQuestions');
 
 const ROOT = path.join(__dirname, '..');
 const PLAN_EXPECTATIONS = Object.freeze({
@@ -501,9 +501,9 @@ test('unlabelled warm-up transcripts tolerate provider punctuation variants with
 });
 
 test('reports, recommendations, comparisons, and reconciliation consume sanitized derived evidence rather than raw warm-up text', () => {
-  const reportsSource = fs.readFileSync(path.join(ROOT, 'routes', 'reportsPdf.js'), 'utf8');
-  const automationSource = fs.readFileSync(path.join(ROOT, 'src', 'lib', 'candidateAutomationEvaluator.js'), 'utf8');
-  const reconciliationSource = fs.readFileSync(path.join(ROOT, 'src', 'lib', 'finalTranscriptReconciliation.js'), 'utf8');
+  const reportsSource = fs.readFileSync(path.join(ROOT, 'src', 'routes', 'client', 'reportsPdf.js'), 'utf8');
+  const automationSource = fs.readFileSync(path.join(ROOT, 'src', 'services', 'candidateAutomationEvaluator.js'), 'utf8');
+  const reconciliationSource = fs.readFileSync(path.join(ROOT, 'src', 'services', 'finalTranscriptReconciliation.js'), 'utf8');
   assert.doesNotMatch(reportsSource, /latestInterview\??\.transcript(?!_scores)/);
   assert.doesNotMatch(automationSource, /interviewRow\??\.transcript(?!_scores)/);
   assert.doesNotMatch(reconciliationSource, /favorite season/i);

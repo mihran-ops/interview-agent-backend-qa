@@ -6,7 +6,7 @@ const {
   LIST_PAGE_SIZE,
   createTavusReadOnlyProvider,
   reconcileAmbiguousTavusStart,
-} = require('../src/lib/tavusVendorReconciliation');
+} = require('../src/services/tavusVendorReconciliation');
 
 const INTERVIEW_ID = '77000000-0000-4000-8000-000000000001';
 const AUTHORIZATION_ID = '77000000-0000-4000-8000-000000000002';

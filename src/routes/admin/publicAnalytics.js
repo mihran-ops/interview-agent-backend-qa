@@ -10,8 +10,8 @@ const {
   safePublicAnalyticsErrorBody,
   unarchivePublicLeadCapture,
   updatePublicLeadCaptureArchiveBatch,
-} = require('../../lib/adminPublicAnalyticsService');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+} = require('../../services/adminPublicAnalyticsService');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { sendAdminError } = require('../../services/admin/adminHelpers');

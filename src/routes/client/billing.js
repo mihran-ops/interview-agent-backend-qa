@@ -4,10 +4,10 @@
 // Mounted at the application root, so the paths here are absolute.
 
 const express = require('express');
-const { buildClientDashboardReturnUrl } = require('../../../config/urlConfig');
-const { resolveBillingOwnerForScope } = require('../../lib/clientBillingScope');
-const { canViewLegalBillingForClient } = require('../../lib/clientScope');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
+const { buildClientDashboardReturnUrl } = require('../../config/urlConfig');
+const { resolveBillingOwnerForScope } = require('../../services/clientBillingScope');
+const { canViewLegalBillingForClient } = require('../../services/clientScope');
+const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const {
   hasClientWriteAccess,
@@ -91,7 +91,7 @@ router.post('/clients/billing/portal-session', requireAuth, withClientScope, asy
     const stripeCustomerId = String(client.stripe_customer_id || '').trim()
     if (!stripeCustomerId) return res.status(400).json({ error: 'missing_stripe_customer' })
 
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
     const returnParams = new URLSearchParams({
       client_id: clientId,
       tab
@@ -167,7 +167,7 @@ router.post('/clients/billing/additional-interviews/checkout-session', requireAu
       return res.status(500).json({ error: 'create_role_interview_purchase_failed', detail: pendingPurchaseErr.message })
     }
 
-    const stripe = require('../../../lib/stripeClient')
+    const stripe = require('../../clients/stripe')
 
     let stripeCustomerId = String(billingClient.stripe_customer_id || '').trim()
     if (stripeCustomerId) {

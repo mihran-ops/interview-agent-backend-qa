@@ -6,27 +6,27 @@
 
 const express = require('express');
 const crypto = require('crypto');
-const { supabaseAdmin } = require('../../lib/supabaseClient');
-const { requireParentClient, resolveBillingOwnerForScope } = require('../../lib/clientBillingScope');
-const { canViewLegalBillingForClient } = require('../../lib/clientScope');
-const { buildMembershipAgreementSignUrl } = require('../../../config/urlConfig');
+const { supabaseAdmin } = require('../../clients/supabase');
+const { requireParentClient, resolveBillingOwnerForScope } = require('../clientBillingScope');
+const { canViewLegalBillingForClient } = require('../clientScope');
+const { buildMembershipAgreementSignUrl } = require('../../config/urlConfig');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
-const { htmlToPdf } = require('../../../utils/pdfRenderer');
+const { htmlToPdf } = require('../../render/pdfRenderer');
 const {
   buildMembershipAgreementHtml,
   normalizeMembershipAgreementInput
-} = require('../../../utils/renderMembershipAgreement');
+} = require('../../render/membershipAgreement');
 const {
   sendMembershipAgreementSignedCopyEmail,
   sendMembershipAgreementCompletedInternalNotification
-} = require('../../../utils/mailer');
-const { createSubscriptionCheckoutSession } = require('../../lib/subscriptionCheckout');
+} = require('../../clients/sendgrid');
+const { createSubscriptionCheckoutSession } = require('../subscriptionCheckout');
 const {
   normalizeAlphaScreenPlanKey,
   normalizeBillingInterval,
   getAlphaScreenPlatformFee,
   getAlphaScreenFirstRolePrepayConfig
-} = require('../../lib/alphaScreenPackages');
+} = require('../alphaScreenPackages');
 
 
 const AGREEMENTS_BUCKET = process.env.SUPABASE_AGREEMENTS_BUCKET || 'agreements';

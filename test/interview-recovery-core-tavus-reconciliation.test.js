@@ -8,7 +8,7 @@ const {
   createTavusReadOnlyProvider,
   deterministicConversationName,
   reconcileAmbiguousTavusStart,
-} = require('../src/lib/tavusVendorReconciliation');
+} = require('../src/services/tavusVendorReconciliation');
 
 const ID = {
   replacement: '74000000-0000-4000-8000-000000000005',

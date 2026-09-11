@@ -9,7 +9,7 @@ const {
   ROLE_ACTIVITY_CHECKS,
   findRoleActivity,
   getRoleJdReplacementEligibility,
-} = require('../src/lib/roleJdReplacement');
+} = require('../src/services/roleJdReplacement');
 
 const ROLE_A = '11111111-1111-4111-8111-111111111111';
 const ROLE_B = '22222222-2222-4222-8222-222222222222';
@@ -143,9 +143,9 @@ test('endpoint activity lookup delegates to the shared eligibility helper', asyn
 
 test('client and admin role list sources expose the eligibility summary', () => {
   const root = path.join(__dirname, '..');
-  const clientListSource = fs.readFileSync(path.join(root, 'routes', 'roles.js'), 'utf8');
+  const clientListSource = fs.readFileSync(path.join(root, 'src', 'routes', 'client', 'roles.js'), 'utf8');
   const adminListSource = fs.readFileSync(path.join(root, 'src', 'routes', 'admin', 'roles.js'), 'utf8');
-  const replacementServiceSource = fs.readFileSync(path.join(root, 'src', 'lib', 'roleJdReplacement.js'), 'utf8');
+  const replacementServiceSource = fs.readFileSync(path.join(root, 'src', 'services', 'roleJdReplacement.js'), 'utf8');
 
   assert.match(clientListSource, /getRoleJdReplacementEligibility/);
   assert.match(clientListSource, /job_description_replacement/);

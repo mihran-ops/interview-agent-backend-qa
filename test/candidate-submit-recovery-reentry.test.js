@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { test } = require('node:test');
 const express = require('express');
-const { destinationFingerprint } = require('../src/lib/otpChallenge');
+const { destinationFingerprint } = require('../src/services/otpChallenge');
 
 process.env.SUPABASE_URL ||= 'http://127.0.0.1:54321';
 process.env.SUPABASE_SERVICE_ROLE_KEY ||= 'test-service-role-key';
@@ -246,17 +246,17 @@ function loadRouter(context) {
       context.tracker.failures.push(row);
     },
   };
-  installModule('../src/lib/supabaseClient', { supabase: context, supabaseAdmin: context });
-  installModule('../src/lib/rateLimit', {
+  installModule('../src/clients/supabase', { supabase: context, supabaseAdmin: context });
+  installModule('../src/services/rateLimit', {
     getRequestSubjectKey: () => 'synthetic-subject',
     checkAndIncrementRateLimit: async () => ({ allowed: true }),
   });
-  installModule('../src/lib/roleInterviewAvailability', {
+  installModule('../src/services/roleInterviewAvailability', {
     getRoleInterviewAvailability: async () => ({ remaining_interviews: 5 }),
     syncRoleInterviewLimitNotification: async () => {},
   });
-  installModule('../src/lib/candidateSubmissionIdempotency', idempotency);
-  installModule('../analyzeResume', async () => ({ synthetic: true }));
+  installModule('../src/services/candidateSubmissionIdempotency', idempotency);
+  installModule('../src/services/analyzeResume', async () => ({ synthetic: true }));
 
   const sg = require('@sendgrid/mail');
   sg.setApiKey = () => {};
@@ -265,7 +265,7 @@ function loadRouter(context) {
     return [{ statusCode: 202 }];
   };
 
-  const routePath = require.resolve('../routes/candidateSubmit');
+  const routePath = require.resolve('../src/routes/public/candidateSubmit');
   delete require.cache[routePath];
   return require(routePath);
 }

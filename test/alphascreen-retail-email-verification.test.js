@@ -9,9 +9,9 @@ const projectRoot = path.resolve(__dirname, '..')
 const { test } = require('node:test')
 
 const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'alphascreen', 'index.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
-const rateLimitPath = path.join(__dirname, '..', 'src', 'lib', 'rateLimit.js')
-const mailerPath = path.join(__dirname, '..', 'utils', 'mailer.js')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
+const rateLimitPath = path.join(__dirname, '..', 'src', 'services', 'rateLimit.js')
+const mailerPath = path.join(__dirname, '..', 'src', 'clients', 'sendgrid.js')
 const migrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '20260714212318_retail_signup_email_verification.sql')
 const resendTimingMigrationPath = path.join(__dirname, '..', 'supabase', 'migrations', '20260715120000_retail_signup_email_verification_resend_timing.sql')
 

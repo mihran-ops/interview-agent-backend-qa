@@ -39,9 +39,9 @@ function buildRouteInventory() {
   process.env.TAVUS_API_KEY = 'stub-tavus-key';
 
   const appPath = path.join(ROOT, 'app.js');
-  const supabaseClientPath = path.join(ROOT, 'src', 'lib', 'supabaseClient.js');
+  const supabaseClientPath = path.join(ROOT, 'src', 'clients', 'supabase.js');
   const authPath = path.join(ROOT, 'src', 'middleware', 'auth.js');
-  const generateRubricPath = path.join(ROOT, 'generateRubric.js');
+  const generateRubricPath = path.join(ROOT, 'src', 'services', 'generateRubric.js');
   const dotenvPath = require.resolve('dotenv');
 
   // Everything first-party must load fresh, so the recorder observes every

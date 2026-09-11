@@ -7,7 +7,7 @@ const {
   PROVIDER_CLOSING_GRACE_SECONDS,
   PROVIDER_MAX_CALL_DURATION_SECONDS,
   resolveProviderMaxCallDurationSeconds,
-} = require('../src/lib/interviewDuration');
+} = require('../src/services/interviewDuration');
 
 const SYNTHETIC_INTERVIEW_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -38,7 +38,7 @@ async function captureConversationPayload(maxInterviewMinutes = 10) {
   };
 
   try {
-    const { createTavusInterviewHandler } = require('../handlers/createTavusInterview');
+    const { createTavusInterviewHandler } = require('../src/services/tavusInterview');
     await createTavusInterviewHandler(
       { id: 'synthetic-candidate', name: 'Synthetic Candidate' },
       {

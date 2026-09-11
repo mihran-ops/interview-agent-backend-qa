@@ -8,12 +8,12 @@ const projectRoot = path.resolve(__dirname, '..')
 const { test } = require('node:test')
 
 const routePath = path.join(__dirname, '..', 'src', 'routes', 'public', 'alphascreen', 'index.js')
-const supabaseClientPath = path.join(__dirname, '..', 'src', 'lib', 'supabaseClient.js')
-const rateLimitPath = path.join(__dirname, '..', 'src', 'lib', 'rateLimit.js')
-const pdfRendererPath = path.join(__dirname, '..', 'utils', 'pdfRenderer.js')
-const urlConfigPath = path.join(__dirname, '..', 'config', 'urlConfig.js')
-const publicPurchaseActivationPath = path.join(__dirname, '..', 'src', 'lib', 'publicPurchaseActivation.js')
-const { buildAlphaScreenPackageSnapshot } = require('../src/lib/alphaScreenPackages')
+const supabaseClientPath = path.join(__dirname, '..', 'src', 'clients', 'supabase.js')
+const rateLimitPath = path.join(__dirname, '..', 'src', 'services', 'rateLimit.js')
+const pdfRendererPath = path.join(__dirname, '..', 'src', 'render', 'pdfRenderer.js')
+const urlConfigPath = path.join(__dirname, '..', 'src', 'config', 'urlConfig.js')
+const publicPurchaseActivationPath = path.join(__dirname, '..', 'src', 'services', 'publicPurchaseActivation.js')
+const { buildAlphaScreenPackageSnapshot } = require('../src/services/alphaScreenPackages')
 
 const BASIC_INTENT_ID = '11111111-1111-4111-8111-111111111111'
 const PRO_INTENT_ID = '22222222-2222-4222-8222-222222222222'

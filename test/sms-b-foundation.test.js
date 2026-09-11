@@ -8,12 +8,12 @@ const {
   isSmsDestinationSuppressed,
   lineTypeAllowsSms,
   normalizeSmsLineType,
-} = require('../src/lib/smsOtpFoundation');
+} = require('../src/services/smsOtpFoundation');
 const {
   SMS_PROVIDER_SAFE_ERRORS,
   assertSmsProviderRequest,
   assertSmsProviderResult,
-} = require('../src/lib/smsProviderContract');
+} = require('../src/services/smsProviderContract');
 
 const US = { phone_e164: '+15551234567', phone_country_code: 'US' };
 
