@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read(**)", "Glob(**)", "Grep(**)", "Edit(./**)", "Write(./**)",
+      "Bash(npm test*)", "Bash(node --test*)", "Bash(npm install*)",
+      "Bash(git status)", "Bash(git diff *)", "Bash(git log *)",
+      "Bash(git add *)", "Bash(git commit *)", "Bash(git mv *)", "Bash(mkdir *)"
+    ],
+    "deny": [
+      "Bash(git push *)", "Bash(git remote *)", "Bash(git reset --hard*)",
+      "Bash(curl *)", "Bash(wget *)", "Bash(rm -rf *)",
+      "Read(./.env)", "Read(./.env.*)", "Write(./.claude/**)", "Edit(./.claude/**)"
+    ]
+  }
+}

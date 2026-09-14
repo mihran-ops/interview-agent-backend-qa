@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    { "path": "/internal/contracts/process-renewals", "schedule": "0 6 * * *" },
+    { "path": "/internal/otp/cleanup", "schedule": "0 * * * *" },
+    { "path": "/internal/recordings/cleanup", "schedule": "30 6 * * *" }
+  ],
+  "functions": {
+    "app.js": { "maxDuration": 300 }
+  }
+}
