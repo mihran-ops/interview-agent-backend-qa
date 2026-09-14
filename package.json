@@ -45,10 +45,8 @@
     "openai": "^5.23.1",
     "pdf-parse": "2.4.5",
     "puppeteer-core": "^24.1.1",
-    "react-router-dom": "^7.7.1",
     "resend": "^4.8.0",
     "stripe": "^16.6.0",
-    "supabase": "^2.33.9",
     "tmp": "^0.2.5",
     "twilio": "^5.8.0",
     "undici": "6.28.0",
@@ -56,6 +54,7 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
+    "supabase": "^2.117.0",
     "supertest": "^7.0.0"
   }
 }
