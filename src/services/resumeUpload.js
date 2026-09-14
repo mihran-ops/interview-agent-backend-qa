@@ -3,7 +3,6 @@
 const crypto = require('crypto');
 const path = require('path');
 const mammoth = require('mammoth');
-const { PDFParse, PasswordException } = require('pdf-parse');
 
 const MAX_RESUME_BYTES = 10 * 1024 * 1024;
 const MIN_MEANINGFUL_TEXT_CHARS = 20;
@@ -39,6 +38,10 @@ function assertResumeSize(file) {
 }
 
 async function extractPdfText(buffer) {
+  // Required here rather than at module scope: pdf-parse pulls in pdfjs at load time,
+  // which is heavy and only needed on the PDF path.
+  const { PDFParse, PasswordException } = require('pdf-parse');
+
   const parser = new PDFParse({
     data: buffer,
     isEvalSupported: false,
