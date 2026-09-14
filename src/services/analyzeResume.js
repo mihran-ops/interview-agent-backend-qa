@@ -1,6 +1,5 @@
 // analyzeResume.js
 require('dotenv').config();
-const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 const { assessResumeIntegrity } = require('./resumeIntegrity');
 
@@ -140,6 +139,10 @@ All score values must be numeric 0-100 values or null, not strings.
 }
 
 async function analyzeResume(fileBuffer, mimeType, role, candidateId, dependencies = {}) {
+  // Required here rather than at module scope: pdf-parse fails at load time on Vercel,
+  // which would take the whole app down before any route is reachable.
+  const { PDFParse } = require('pdf-parse');
+
   const db = dependencies.db || getDefaultDb();
   const openaiClient = dependencies.openaiClient || null;
   let resumeText = '';

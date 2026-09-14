@@ -5,7 +5,5 @@
     { "path": "/internal/otp/cleanup", "schedule": "0 * * * *" },
     { "path": "/internal/recordings/cleanup", "schedule": "30 6 * * *" }
   ],
-  "functions": {
-    "app.js": { "maxDuration": 300 }
-  }
+  "functions": { "app.js": { "maxDuration": 300 } }
 }

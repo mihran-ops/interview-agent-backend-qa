@@ -38,8 +38,8 @@ function assertResumeSize(file) {
 }
 
 async function extractPdfText(buffer) {
-  // Required here rather than at module scope: pdf-parse pulls in pdfjs at load time,
-  // which is heavy and only needed on the PDF path.
+  // Required here rather than at module scope: pdf-parse fails at load time on Vercel,
+  // which would take the whole app down before any route is reachable.
   const { PDFParse, PasswordException } = require('pdf-parse');
 
   const parser = new PDFParse({

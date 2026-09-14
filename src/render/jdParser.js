@@ -1,7 +1,6 @@
 // src/render/jdParser.js
 'use strict';
 
-const { PDFParse } = require('pdf-parse');
 const mammoth = require('mammoth');
 const path = require('path');
 
@@ -22,6 +21,10 @@ function normalizeExtractedText(value) {
 }
 
 async function parseBufferToText(buffer, mime, filename) {
+  // Required here rather than at module scope: pdf-parse fails at load time on Vercel,
+  // which would take the whole app down before any route is reachable.
+  const { PDFParse } = require('pdf-parse');
+
   const ext = (path.extname(filename || '').toLowerCase() || '').replace('.', '');
   const type = mime || '';
 

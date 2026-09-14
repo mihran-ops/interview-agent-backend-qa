@@ -1,6 +1,9 @@
 // app.js (drop-in)
 require('dotenv').config()
 
+// Loaded explicitly so serverless bundlers include the native canvas pdf-parse needs.
+try { require('@napi-rs/canvas') } catch (_) {}
+
 // --- Sentry MUST be initialized before requiring Express to instrument it ---
 const Sentry = require('@sentry/node');
 const { nodeProfilingIntegration } = require('@sentry/profiling-node');
