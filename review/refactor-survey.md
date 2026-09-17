@@ -106,7 +106,7 @@ These are the extraction blockers. Any route moved out of `app.js` must import t
 
 1. **Raw-body webhooks must stay before `express.json` (219–227 before 229).** Stripe signature verification at `routes/webhookStripe.js:314` calls `stripe.webhooks.constructEvent(req.body, …)` and needs the unparsed `Buffer`. Reordering these mounts, or moving the JSON parser earlier, makes every Stripe webhook fail signature verification with a 400 — and no existing test would catch it, because no test loads `app.js` and posts to that path. The same constraint applies to Telnyx (220) and to the SendGrid `verify` callback (221).
 
-2. **`GET /:token` at 6716 is a single-segment catch-all** registered before `/healthz` (6734) and `/health` (6812) in source order. Express matches in registration order, so those two health endpoints are reachable only if `/:token` declines them or calls `next()`. **This must be confirmed behaviourally before any reordering** — it is exactly what the Step 1 smoke tests are for.
+2. **`GET /:token` at 6716 is a single-segment catch-all** registered before `/healthz` (6734) and `/health` (6812) in source order. Express matches in registration order, so those two health endpoints depend on `/:token` declining them. It does: the handler calls `next()` unless the Host header is the interviews subdomain and the token is a v4 UUID, and neither `healthz` nor `health` is a UUID. Confirmed behaviourally by test/app.smoke.test.js, which asserts `GET /healthz` returns its documented payload and `GET /health` returns `{ ok: true }`; both pass. The catch-all does not swallow the health endpoints, and no caveat applies to reordering them.
 
 3. **`/reports` is mounted twice** (6662, 6679). The second is wrapped in `try { … } catch` that logs and continues, so a load failure in `routes/reportsPdf.js` silently removes those endpoints while the service reports healthy. Two routers on one prefix also makes handling depend on which router matches first.
 
@@ -124,16 +124,30 @@ These are the extraction blockers. Any route moved out of `app.js` must import t
 
 Six directories hold what is conceptually one service layer, split by history rather than by role.
 
+Reachability below is verified by dependency graph from app.js (2026-09-16), not by name
+search. Per-file results are in review/dead-code-verified.csv; corrections to the earlier
+version of this table are listed in review/backend-inventory.md under "Corrections".
+
 | Directory | Files | Live | Dead | Overlaps |
 |---|---:|---|---|---|
-| `src/lib/` | ~80 | Nearly all | `platformHealth/index.js` (barrel; tests import the leaves directly) | The canonical layer. Everything else duplicates part of it |
-| `src/middleware/` | 3 | `auth.js` | `requireAuth.js`, `withClientScope.js` (4-line re-export shims) | `middleware/auth.js` re-exports this |
-| `lib/` | 4 | `tavusDocuments.js`; `stripeClient.js` (exported, unused by app.js) | `tavusClient.js`, `createTavusInterviewInternal.js` | `tavusClient.js` vs `src/lib/tavusHttpClient.js` |
+| `src/lib/` | ~80 | Nearly all, including `platformHealth/index.js` (required by `src/lib/adminMetricsService.js:4`) | None unreachable. Five files are reached only from `test/`: `pronunciationRegistry.js`, `pronunciationDiscovery.js`, `tavusPronunciationSync.js`, `smsDeliveryCallbackContract.js`, and `src/data/pronunciation/dentalSeed.js` | The canonical layer. Everything else duplicates part of it |
+| `src/middleware/` | 3 | `auth.js` | `requireAuth.js`, `withClientScope.js` (4-line re-export shims) | root `middleware/auth.js` re-exports this, and is itself unreachable |
+| `lib/` | 4 | `tavusDocuments.js`; `stripeClient.js` (required by `routes/adminBilling.js`, not by app.js) | `tavusClient.js`, `createTavusInterviewInternal.js` | `tavusClient.js` vs `src/lib/tavusHttpClient.js` |
 | `utils/` | 7 | `jdParser.js`, `mailer.js`, `pdfRenderer.js`, `renderCandidateReport.js`, `renderMembershipAgreement.js` | `pg.js` (requires `pg`, absent from package.json), `sendEmailOtp.js` | `sendEmailOtp.js` vs `src/lib/otpDelivery.js` |
-| `handlers/` | 6 | none reachable | `recordingReady.js` (497), `tavusWebhook.js`, `createPaymentIntent.js`, `generateReport.js`; `createTavusInterview.js` is imported only by a test | `tavusWebhook.js` vs `routes/webhook.js` |
+| `handlers/` | 6 | `createTavusInterview.js` (463 lines; required by `routes/createTavusInterview.js:7`) | `recordingReady.js` (497), `tavusWebhook.js`, `createPaymentIntent.js`, `generateReport.js`, `resumeUpload.js` (132) | `tavusWebhook.js` vs `routes/webhook.js` |
 | `config/` | 2 | `urlConfig.js` (270) | `storage.js` (9) | `storage.js` bucket constants vs per-route env reads |
 | `jobs/` | 1 | none | `sendNightlyDigests.js` | Digest logic now lives in `routes/automation.js` |
-| `middleware/` | 1 | 1-line re-export | — | Shim for `src/middleware/auth` |
+| `middleware/` | 1 | none | `auth.js` (1-line re-export, required by nothing) | Shim for `src/middleware/auth` |
+
+Three of the unreachable files would throw on require if anything did reach them, which
+corroborates the verdict independently: handlers/recordingReady.js:12 requires
+`../supabaseClient` and handlers/recordingReady.js:13 requires `../utils/pdfMonkey`,
+jobs/sendNightlyDigests.js:2 requires `../supabaseClient`, and
+lib/createTavusInterviewInternal.js:2 requires `./supabaseClient`. None of those three
+modules exist at any path in the repository.
+
+Two unreachable routers sit outside the six directories and are not covered by the layout
+change below: `routes/authPing.js` (32) and `routes/candidates.js` (96) are never mounted.
 
 **Proposed layout.** One rule: `src/` is the application; the repository root holds only entry points and configuration.
 
@@ -157,7 +171,13 @@ src/
   health/                  platformHealth/*
 ```
 
-Deleted outright: `lib/`, `utils/`, `handlers/`, `jobs/`, `middleware/`, root `config/`, and the four re-export shims. That removes roughly 1,200 lines of unreachable code and five indirection layers, and it settles the "which `auth.js` is this?" question that currently has three answers.
+Emptied out: `lib/`, `utils/`, `handlers/`, `jobs/`, `middleware/`, root `config/`, and the
+four re-export shims. Within those directories 1,130 lines across 14 files are unreachable
+and can be deleted; the rest are live and must be moved, not dropped. In particular
+`handlers/createTavusInterview.js` is live at 463 lines — deleting `handlers/` wholesale
+would take the create-interview route down with it. Across the whole repository 1,382 lines
+across 20 files are unreachable from app.js. Removing them settles the "which `auth.js` is
+this?" question that currently has three answers.
 
 ## 2.2 The large route files
 
