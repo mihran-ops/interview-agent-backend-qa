@@ -7,6 +7,7 @@
 
 const express = require('express');
 const { supabaseAdmin } = require('../../clients/supabase');
+const { secretsMatch } = require('../secretCompare');
 const mailer = require('../../clients/sendgrid');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const {
@@ -194,7 +195,7 @@ function automationSchedulerSecretHeader(req) {
 function validAutomationSchedulerSecret(req) {
   const expected = configuredAutomationSchedulerSecret();
   const provided = automationSchedulerSecretHeader(req);
-  return Boolean(expected && provided && provided === expected);
+  return secretsMatch(provided, expected);
 }
 
 function automationDigestSchedulerSendEnabled() {

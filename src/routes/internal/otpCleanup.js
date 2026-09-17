@@ -5,13 +5,14 @@
 const express = require('express');
 
 const { supabaseAdmin } = require('../../clients/supabase');
+const { secretsMatch } = require('../../services/secretCompare');
 
 const router = express.Router();
 
 router.post('/otp/cleanup', async (req, res) => {
   const expectedSecret = String(process.env.OTP_CLEANUP_CRON_SECRET || process.env.CONTRACTS_CRON_SECRET || '')
   const providedSecret = String(req.get('x-cron-secret') || '')
-  if (!expectedSecret || providedSecret !== expectedSecret) {
+  if (!secretsMatch(providedSecret, expectedSecret)) {
     return res.status(403).json({ error: 'forbidden' })
   }
 

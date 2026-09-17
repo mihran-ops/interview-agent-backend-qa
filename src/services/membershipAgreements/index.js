@@ -37,8 +37,10 @@ const PUBLIC_TOKEN_RATE_WINDOW_MS = 10 * 60 * 1000;
 const PUBLIC_TOKEN_RATE_MAX = Number(process.env.MEMBERSHIP_AGREEMENT_PUBLIC_TOKEN_RATE_MAX || 60);
 const publicAgreementTokenRateBuckets = new Map();
 
+// req.ip only. Reading X-Forwarded-For directly bypassed the app's trust proxy setting,
+// so any caller could mint a fresh rate-limit bucket per request by varying the header.
 function getRequestIp(req) {
-  return String((req.headers['x-forwarded-for'] || req.ip || 'unknown')).split(',')[0].trim() || 'unknown';
+  return String(req.ip || 'unknown').trim() || 'unknown';
 }
 
 function publicAgreementTokenRateLimit(req, res, next) {

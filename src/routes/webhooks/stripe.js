@@ -1,6 +1,6 @@
 // routes/webhookStripe.js
 const express = require('express');
-const Stripe = require('stripe');
+const stripe = require('../../clients/stripe');
 const { supabaseAdmin } = require('../../clients/supabase');
 const { requireParentClient } = require('../../services/clientBillingScope');
 const { getRoleInterviewAvailability } = require('../../services/roleInterviewAvailability');
@@ -10,7 +10,21 @@ const { finalizePendingRolePurchase } = require('../../services/rolePurchaseFina
 const { requirePlanCapacity } = require('../../services/planCapacity');
 const router = express.Router();
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+const SETTLED_PAYMENT_STATUSES = new Set(['paid', 'no_payment_required']);
+
+// True only once Stripe says the money is actually collected. A completed checkout
+// session is not sufficient on its own.
+function isSettledPayment(session) {
+  return SETTLED_PAYMENT_STATUSES.has(String(session?.payment_status || '').trim().toLowerCase());
+}
+
+// A failure that will never succeed on redelivery, so acknowledging it is correct.
+// Anything not marked this way is treated as transient and left for Stripe to retry.
+function permanentFailure(message) {
+  const err = new Error(message);
+  err.permanentFailure = true;
+  return err;
+}
 
 function isUniqueViolation(error) {
   const code = String(error?.code || '');
@@ -313,10 +327,16 @@ router.post('/', async (req, res) => {
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
+    // The verification detail stays server-side: it describes the verification path to a
+    // caller who by definition could not authenticate.
+    console.warn('[stripe-webhook] signature_verification_failed', {
+      request_id,
+      detail: err?.message || 'invalid signature'
+    });
     return res.status(400).json({
       error: 'bad_request',
       code: 'STRIPE_SIGNATURE_VERIFICATION_FAILED',
-      detail: err?.message || 'Invalid signature',
+      detail: 'Signature verification failed.',
       hint: null,
       request_id
     });
@@ -398,7 +418,11 @@ router.post('/', async (req, res) => {
           }
         }
       }
-    } else if (event.type === 'checkout.session.completed') {
+    } else if (
+      event.type === 'checkout.session.completed' ||
+      event.type === 'checkout.session.async_payment_succeeded' ||
+      event.type === 'checkout.session.async_payment_failed'
+    ) {
       const metadata = eventObject?.metadata && typeof eventObject.metadata === 'object' ? eventObject.metadata : {};
       const purchaseType = String(metadata?.purchase_type || '').trim().toLowerCase();
       const metadataSource = String(metadata?.source || '').trim().toLowerCase();
@@ -407,6 +431,11 @@ router.post('/', async (req, res) => {
       const metadataPlanTier = String(metadata?.plan_tier || '').trim().toLowerCase();
       const metadataBillingInterval = String(metadata?.billing_interval || '').trim().toLowerCase();
       const customerId = pickId(eventObject?.customer);
+      // checkout.session.completed can arrive before the money settles for
+      // delayed-notification payment methods, so entitlement is granted on the payment
+      // status rather than on the session having completed.
+      const paymentFailed = event.type === 'checkout.session.async_payment_failed';
+      const paymentSettled = !paymentFailed && isSettledPayment(eventObject);
 
       if (purchaseType === 'additional_interviews') {
         const purchaseId = String(metadata?.role_interview_purchase_id || '').trim();
@@ -442,7 +471,7 @@ router.post('/', async (req, res) => {
             client_id: metadataClientId || null,
             role_id: metadataRoleId || null
           });
-          throw new Error('Role interview purchase not found');
+          throw permanentFailure('Role interview purchase not found');
         }
 
         console.log('[stripe-webhook][additional-interviews] purchase_found', {
@@ -453,18 +482,40 @@ router.post('/', async (req, res) => {
         });
 
         if (metadataClientId && purchase.client_id !== metadataClientId) {
-          throw new Error('Role interview purchase client mismatch');
+          throw permanentFailure('Role interview purchase client mismatch');
         }
         if (metadataRoleId && purchase.role_id !== metadataRoleId) {
-          throw new Error('Role interview purchase role mismatch');
+          throw permanentFailure('Role interview purchase role mismatch');
         }
         if (Number.isFinite(metadataQuantity) && Number.isInteger(metadataQuantity) && metadataQuantity > 0) {
           if (Number(purchase.quantity) !== metadataQuantity) {
-            throw new Error('Role interview purchase quantity mismatch');
+            throw permanentFailure('Role interview purchase quantity mismatch');
           }
         }
 
-        if (String(purchase.status || '').trim().toLowerCase() === 'paid') {
+        if (paymentFailed) {
+          console.warn('[stripe-webhook][additional-interviews] payment_failed', {
+            request_id,
+            role_interview_purchase_id: purchase.id,
+            client_id: purchase.client_id,
+            role_id: purchase.role_id
+          });
+          const { error: markFailedErr } = await supabaseAdmin
+            .from('role_interview_purchases')
+            .update({ status: 'failed' })
+            .eq('id', purchase.id)
+            .in('status', ['pending']);
+          if (markFailedErr) throw new Error(markFailedErr.message || 'Role interview purchase failed update failed');
+        } else if (!paymentSettled) {
+          // Delayed payment method: wait for checkout.session.async_payment_succeeded.
+          console.log('[stripe-webhook][additional-interviews] payment_not_settled', {
+            request_id,
+            role_interview_purchase_id: purchase.id,
+            client_id: purchase.client_id,
+            role_id: purchase.role_id,
+            payment_status: String(eventObject?.payment_status || '') || null
+          });
+        } else if (String(purchase.status || '').trim().toLowerCase() === 'paid') {
           console.log('[stripe-webhook][additional-interviews] already_paid', {
             role_interview_purchase_id: purchase.id,
             client_id: purchase.client_id,
@@ -491,11 +542,13 @@ router.post('/', async (req, res) => {
           });
         }
 
-        const availability = await getRoleInterviewAvailability({
-          db: supabaseAdmin,
-          roleId: purchase.role_id,
-          clientId: purchase.client_id
-        });
+        const availability = paymentSettled
+          ? await getRoleInterviewAvailability({
+            db: supabaseAdmin,
+            roleId: purchase.role_id,
+            clientId: purchase.client_id
+          })
+          : { remaining_interviews: null };
         if (availability.remaining_interviews != null && availability.remaining_interviews > 0) {
           const { error: resetNotifyErr } = await supabaseAdmin
             .from('roles')
@@ -521,16 +574,37 @@ router.post('/', async (req, res) => {
         }
       } else if (metadataSource === 'client_role_purchase') {
         const pendingRolePurchaseId = String(metadata?.pending_role_purchase_id || '').trim();
-        if (!pendingRolePurchaseId) throw new Error('Pending role purchase id missing');
+        if (!pendingRolePurchaseId) throw permanentFailure('Pending role purchase id missing');
         const { data: pendingRolePurchase, error: pendingRolePurchaseErr } = await supabaseAdmin
           .from('pending_role_purchases')
           .select('id,client_id,status,role_title,interview_type,jd_storage_path,created_at,paid_at,finalized_role_id')
           .eq('id', pendingRolePurchaseId)
           .maybeSingle();
         if (pendingRolePurchaseErr) throw new Error(pendingRolePurchaseErr.message || 'Pending role purchase lookup failed');
-        if (!pendingRolePurchase) throw new Error('Pending role purchase not found');
+        if (!pendingRolePurchase) throw permanentFailure('Pending role purchase not found');
 
-        if (!pendingRolePurchase.finalized_role_id) {
+        if (paymentFailed) {
+          console.warn('[stripe-webhook][client-role-purchase] payment_failed', {
+            request_id,
+            pending_role_purchase_id: pendingRolePurchase.id,
+            client_id: pendingRolePurchase.client_id
+          });
+          const { error: markFailedErr } = await supabaseAdmin
+            .from('pending_role_purchases')
+            .update({ status: 'failed' })
+            .eq('id', pendingRolePurchase.id)
+            .is('finalized_role_id', null)
+            .in('status', ['pending']);
+          if (markFailedErr) throw new Error(markFailedErr.message || 'Pending role purchase failed update failed');
+        } else if (!paymentSettled) {
+          // Delayed payment method: wait for checkout.session.async_payment_succeeded.
+          console.log('[stripe-webhook][client-role-purchase] payment_not_settled', {
+            request_id,
+            pending_role_purchase_id: pendingRolePurchase.id,
+            client_id: pendingRolePurchase.client_id,
+            payment_status: String(eventObject?.payment_status || '') || null
+          });
+        } else if (!pendingRolePurchase.finalized_role_id) {
           const amountTotal = Number(eventObject?.amount_total);
           const { error: markPaidErr } = await supabaseAdmin
             .from('pending_role_purchases')
@@ -575,7 +649,10 @@ router.post('/', async (req, res) => {
             });
           }
         }
-      } else if (String(eventObject?.mode || '').toLowerCase() === 'subscription') {
+      } else if (
+        event.type === 'checkout.session.completed'
+        && String(eventObject?.mode || '').toLowerCase() === 'subscription'
+      ) {
         const subscriptionId = pickId(eventObject?.subscription);
         let targetClientId = null;
         let checkoutSubscription = null;
@@ -786,8 +863,43 @@ router.post('/', async (req, res) => {
     await markProcessed(true, null);
     return res.status(200).json({ ok: true });
   } catch (err) {
-    await markProcessed(false, String(err?.message || err || 'processing_failed'));
-    return res.status(200).json({ ok: true });
+    const permanent = err?.permanentFailure === true;
+    const detail = String(err?.message || err || 'processing_failed');
+    console.error('[stripe-webhook] processing_failed', {
+      request_id,
+      stripe_event_id: event.id,
+      type: event.type,
+      permanent,
+      detail
+    });
+
+    if (permanent) {
+      // Redelivery cannot change the outcome, so record why and acknowledge.
+      await markProcessed(false, detail);
+      return res.status(200).json({ ok: true });
+    }
+
+    // Transient. The dedupe row is removed first, otherwise Stripe's retry would be
+    // rejected as a replay by the insert above and the event would be lost for good.
+    const { error: cleanupErr } = await supabaseAdmin
+      .from('billing_events')
+      .delete()
+      .eq('stripe_event_id', event.id);
+    if (cleanupErr) {
+      console.error('[stripe-webhook] dedupe_cleanup_failed', {
+        request_id,
+        stripe_event_id: event.id,
+        detail: String(cleanupErr?.message || cleanupErr)
+      });
+    }
+
+    return res.status(500).json({
+      error: 'server_error',
+      code: 'STRIPE_EVENT_PROCESSING_FAILED',
+      detail: 'Event processing failed.',
+      hint: null,
+      request_id
+    });
   }
 });
 

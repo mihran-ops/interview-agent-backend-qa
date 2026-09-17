@@ -107,6 +107,8 @@ async function processContractRenewals(context = {}) {
           continue
         }
 
+        // Conditional on the value this run read, so two concurrent runs cannot both
+        // renew the same client and advance the term twice. The loser matches no rows.
         const { error: renewError } = await supabaseAdmin
           .from('clients')
           .update({
@@ -114,6 +116,7 @@ async function processContractRenewals(context = {}) {
             contract_end_at: newContractEnd
           })
           .eq('id', client.id)
+          .eq('contract_end_at', oldContractEnd)
 
         if (renewError) {
           summary.errors += 1
