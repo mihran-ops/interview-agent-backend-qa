@@ -3,6 +3,9 @@
 const { sendRoleInterviewLimitReachedEmail } = require('../clients/sendgrid');
 const { buildPublicAccountUrl } = require('../config/urlConfig');
 const { resolveBillingOwnerForScope } = require('./clientBillingScope');
+const { normalizeBillingModel } = require('./billingModel');
+
+const ROLLOVER_BILLING_MODEL = 'rollover';
 const EARLY_ENDED_SENTINEL_SUMMARY = 'Interview ended before substantive responses were captured.';
 const INSUFFICIENT_TRANSCRIPT_EARLY_END_SUMMARY_PREFIX = 'Interview ended before any substantive responses were recorded.';
 const NO_SUBSTANTIVE_CANDIDATE_RESPONSE_SUMMARY = 'Interview ended before a substantive candidate response was recorded.';
@@ -59,50 +62,64 @@ function isUsedInterviewRow(row) {
   );
 }
 
-async function getRoleInterviewAvailability({ db, roleId, clientId }) {
-  if (!db || !roleId || !clientId) {
-    return {
-      included_interviews_per_role: null,
-      purchased_interviews: null,
-      used_interviews: null,
-      remaining_interviews: null
-    };
+const UNRESOLVED_AVAILABILITY = Object.freeze({
+  included_interviews_per_role: null,
+  purchased_interviews: null,
+  used_interviews: null,
+  remaining_interviews: null,
+  own_remaining_interviews: null,
+  credit_interviews: null,
+  rollover_drawn_offset: null,
+  billing_model: null
+});
+
+function unresolvedAvailability() {
+  return { ...UNRESOLVED_AVAILABILITY };
+}
+
+// Credits are only spendable under the rollover model, and only that model
+// carries a drawn offset. Loaded lazily because the credit service reads
+// availability to decide what to mint.
+async function loadRolloverPosition(db, clientId, roleId) {
+  const { listAvailableCredits } = require('./interviewCredits');
+  const { data: role, error: roleError } = await db
+    .from('roles')
+    .select('rollover_drawn_offset')
+    .eq('id', roleId)
+    .maybeSingle();
+  if (roleError) throw new Error(roleError.message || 'Role rollover offset lookup failed');
+
+  const credits = await listAvailableCredits({ db, clientId });
+  let creditInterviews = 0;
+  for (const credit of credits) {
+    const remaining = parseWholeNonNegative(credit?.remaining);
+    if (remaining != null) creditInterviews += remaining;
   }
 
+  return {
+    creditInterviews,
+    rolloverDrawnOffset: parseWholeNonNegative(role?.rollover_drawn_offset) ?? 0
+  };
+}
+
+async function getRoleInterviewAvailability({ db, roleId, clientId }) {
+  if (!db || !roleId || !clientId) return unresolvedAvailability();
+
   const billingScope = await resolveBillingOwnerForScope(db, clientId);
-  if (!billingScope.ok) {
-    return {
-      included_interviews_per_role: null,
-      purchased_interviews: null,
-      used_interviews: null,
-      remaining_interviews: null
-    };
-  }
+  if (!billingScope.ok) return unresolvedAvailability();
   const billingClientId = billingScope.billingClientId || clientId;
 
   const { data: planSettings, error: planSettingsError } = await db
     .from('client_plan_settings')
-    .select('included_interviews_per_role')
+    .select('included_interviews_per_role,plan_tier,billing_model')
     .eq('client_id', billingClientId)
     .maybeSingle();
-  if (planSettingsError) {
-    return {
-      included_interviews_per_role: null,
-      purchased_interviews: null,
-      used_interviews: null,
-      remaining_interviews: null
-    };
-  }
+  if (planSettingsError) return unresolvedAvailability();
 
   const includedInterviewsPerRole = parseWholeNonNegative(planSettings?.included_interviews_per_role);
-  if (includedInterviewsPerRole == null) {
-    return {
-      included_interviews_per_role: null,
-      purchased_interviews: null,
-      used_interviews: null,
-      remaining_interviews: null
-    };
-  }
+  if (includedInterviewsPerRole == null) return unresolvedAvailability();
+
+  const billingModel = normalizeBillingModel(planSettings?.billing_model, planSettings?.plan_tier);
 
   const { data: purchaseRows, error: purchasesError } = await db
     .from('role_interview_purchases')
@@ -110,14 +127,7 @@ async function getRoleInterviewAvailability({ db, roleId, clientId }) {
     .eq('client_id', clientId)
     .eq('role_id', roleId)
     .eq('status', 'paid');
-  if (purchasesError) {
-    return {
-      included_interviews_per_role: null,
-      purchased_interviews: null,
-      used_interviews: null,
-      remaining_interviews: null
-    };
-  }
+  if (purchasesError) return unresolvedAvailability();
 
   let purchasedInterviews = 0;
   for (const row of (purchaseRows || [])) {
@@ -130,26 +140,41 @@ async function getRoleInterviewAvailability({ db, roleId, clientId }) {
     .select('status,transcript_scores,interview_summary,has_substantive_response,failure_code,conversation_progress_state')
     .eq('client_id', clientId)
     .eq('role_id', roleId);
-  if (interviewsError) {
-    return {
-      included_interviews_per_role: null,
-      purchased_interviews: null,
-      used_interviews: null,
-      remaining_interviews: null
-    };
-  }
+  if (interviewsError) return unresolvedAvailability();
 
   let usedInterviews = 0;
   for (const row of (interviewRows || [])) {
     if (isUsedInterviewRow(row)) usedInterviews += 1;
   }
 
-  const remainingInterviews = Math.max(0, includedInterviewsPerRole + purchasedInterviews - usedInterviews);
+  // Only the rollover model has credits to add or an offset to subtract, so a
+  // fixed or usage client costs exactly the queries it always did and sees
+  // exactly the numbers it always saw.
+  let creditInterviews = 0;
+  let rolloverDrawnOffset = 0;
+  if (billingModel === ROLLOVER_BILLING_MODEL) {
+    try {
+      const position = await loadRolloverPosition(db, clientId, roleId);
+      creditInterviews = position.creditInterviews;
+      rolloverDrawnOffset = position.rolloverDrawnOffset;
+    } catch (_) {
+      return unresolvedAvailability();
+    }
+  }
+
+  const ownRemainingInterviews = Math.max(
+    0,
+    includedInterviewsPerRole + purchasedInterviews - usedInterviews - rolloverDrawnOffset
+  );
   return {
     included_interviews_per_role: includedInterviewsPerRole,
     purchased_interviews: purchasedInterviews,
     used_interviews: usedInterviews,
-    remaining_interviews: remainingInterviews
+    remaining_interviews: ownRemainingInterviews + creditInterviews,
+    own_remaining_interviews: ownRemainingInterviews,
+    credit_interviews: creditInterviews,
+    rollover_drawn_offset: rolloverDrawnOffset,
+    billing_model: billingModel
   };
 }
 
@@ -295,5 +320,6 @@ async function syncRoleInterviewLimitNotification({
 
 module.exports = {
   getRoleInterviewAvailability,
+  isUsedInterviewRow,
   syncRoleInterviewLimitNotification
 };

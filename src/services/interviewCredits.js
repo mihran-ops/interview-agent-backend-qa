@@ -258,6 +258,57 @@ async function drawCredit({ db, clientId, roleId, interviewId, now } = {}) {
   return { drawn: false, reason: sawContention ? 'contended' : 'no_credits' };
 }
 
+// Spends a credit for an interview the role's own allowance did not cover.
+//
+// Called once an interview has become "used", with the availability computed
+// after that write. A role spends its own allowance first; only the interviews
+// past it reach a credit. Because isUsedInterviewRow can flip from false to true
+// when a late transcript arrives, the draw is keyed on interview_id and cannot
+// run twice for the same interview.
+async function drawCreditForUsedInterview({ db, clientId, roleId, interviewId, availability, now } = {}) {
+  if (!db || !clientId || !roleId || !interviewId) return { drawn: false, reason: 'invalid_request' };
+  if (availability?.billing_model !== ROLLOVER_BILLING_MODEL) {
+    return { drawn: false, reason: 'billing_model' };
+  }
+
+  const included = parseWholeNonNegative(availability.included_interviews_per_role);
+  const purchased = parseWholeNonNegative(availability.purchased_interviews);
+  const used = parseWholeNonNegative(availability.used_interviews);
+  const offset = parseWholeNonNegative(availability.rollover_drawn_offset) ?? 0;
+  if (included == null || purchased == null || used == null) {
+    return { drawn: false, reason: 'availability_unavailable' };
+  }
+
+  // The role's own allowance, ignoring credits entirely. An interview inside it
+  // costs nothing extra.
+  if (used <= included + purchased - offset) return { drawn: false, reason: 'own_allowance' };
+
+  return drawCredit({ db, clientId, roleId, interviewId, now });
+}
+
+// Called by the two paths that write an interview into a used state, right after
+// availability is recomputed. A credit is an accounting side effect of the
+// interview, never a reason to fail handling it, so failures are logged and
+// swallowed. Returns the remaining count adjusted for a draw, so the caller's
+// limit notification is not one behind.
+async function syncInterviewCreditDraw({ db, clientId, roleId, interviewId, availability, now } = {}) {
+  const remaining = availability?.remaining_interviews;
+  try {
+    const result = await drawCreditForUsedInterview({ db, clientId, roleId, interviewId, availability, now });
+    if (!result.drawn) return { ...result, remaining_interviews: remaining };
+    const adjusted = Number.isFinite(Number(remaining)) ? Math.max(0, Number(remaining) - 1) : remaining;
+    return { ...result, remaining_interviews: adjusted };
+  } catch (e) {
+    console.error('interview_credit_draw_failed', {
+      client_id: clientId || null,
+      role_id: roleId || null,
+      interview_id: interviewId || null,
+      error: e?.message || String(e)
+    });
+    return { drawn: false, reason: 'error', remaining_interviews: remaining };
+  }
+}
+
 // Called by both role-status routes after the status change has been written.
 // Credits are an accounting side effect of closing or reopening a role, never a
 // reason to refuse the change, so every failure here is logged and swallowed.
@@ -285,8 +336,10 @@ async function syncRoleCreditsForStatusChange({ db, clientId, roleId, status, cl
 module.exports = {
   ROLLOVER_BILLING_MODEL,
   drawCredit,
+  drawCreditForUsedInterview,
   listAvailableCredits,
   mintCreditForClosedRole,
   revokeCreditForReopenedRole,
+  syncInterviewCreditDraw,
   syncRoleCreditsForStatusChange
 };

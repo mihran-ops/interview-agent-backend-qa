@@ -9,6 +9,7 @@ const analyzeResume = require('../../services/analyzeResume');
 const { supabaseAdmin } = require('../../clients/supabase');
 const { checkDuplicateCandidate } = require('../../services/duplicateCandidate');
 const { getRoleInterviewAvailability, syncRoleInterviewLimitNotification } = require('../../services/roleInterviewAvailability');
+const { syncInterviewCreditDraw } = require('../../services/interviewCredits');
 const { isRoleInactive, buildRoleInactivePayload, logInactiveRoleBlocked } = require('../../services/roleLifecycle');
 
 const router = express.Router();
@@ -970,7 +971,9 @@ router.post('/answers', async (req, res) => {
         answers,
       };
 
-      await supabaseAdmin.from('interviews').insert({
+      // The id is read back so the interview can be charged to a credit at most
+      // once, however many times this path is retried.
+      const { data: insertedInterview } = await supabaseAdmin.from('interviews').insert({
         candidate_id: reqRow.candidate_id,
         role_id: role.id,
         client_id: role.client_id || null,
@@ -982,17 +985,26 @@ router.post('/answers', async (req, res) => {
         unanswered_candidate_questions: unansweredCandidateQuestions,
         analysis: interviewAnalysis,
         status: 'completed',
-      });
+      }).select('id').maybeSingle();
       const postInsertAvailability = await getRoleInterviewAvailability({
         db: supabaseAdmin,
         roleId: role.id,
         clientId: role.client_id || null
       });
+      // A text interview is complete the moment it is inserted, so this is where
+      // it draws a credit if the role's own allowance is already spent.
+      const creditDraw = await syncInterviewCreditDraw({
+        db: supabaseAdmin,
+        clientId: role.client_id || null,
+        roleId: role.id,
+        interviewId: insertedInterview?.id || null,
+        availability: postInsertAvailability
+      });
       await syncRoleInterviewLimitNotification({
         db: supabaseAdmin,
         roleId: role.id,
         clientId: role.client_id || null,
-        remainingInterviews: postInsertAvailability.remaining_interviews,
+        remainingInterviews: creditDraw.remaining_interviews,
         roleTitle: role.title || ''
       });
 

@@ -30,6 +30,7 @@ function matches(row, filters) {
       case 'lt': return current != null && compare(current, value) < 0;
       case 'lte': return current != null && compare(current, value) <= 0;
       case 'in': return (value || []).some((entry) => String(entry ?? '') === String(current ?? ''));
+      case 'not': return !matches(row, [{ op: value.op, column, value: value.value }]);
       default: return true;
     }
   });
@@ -140,6 +141,8 @@ function createFakeSupabase(tables = {}, options = {}) {
       lt(column, value) { filters.push({ op: 'lt', column, value }); return query; },
       lte(column, value) { filters.push({ op: 'lte', column, value }); return query; },
       in(column, value) { filters.push({ op: 'in', column, value }); return query; },
+      // PostgREST spells negation as .not(column, operator, value).
+      not(column, operator, value) { filters.push({ op: 'not', column, value: { op: operator, value } }); return query; },
       order(column, opts = {}) { ordering = { column, ascending: opts.ascending !== false }; return query; },
       limit(value) { limit = value; return query; },
       insert(payload) {

@@ -106,11 +106,17 @@ test('no-substantive interviews do not consume role capacity', async () => {
     },
   ]);
 
+  // The last four keys arrived with the billing models. This client has no
+  // stored model, so the plan tier decides it; with no tier it is the default.
   assert.deepEqual(availability, {
     included_interviews_per_role: 5,
     purchased_interviews: 2,
     used_interviews: 0,
     remaining_interviews: 7,
+    own_remaining_interviews: 7,
+    credit_interviews: 0,
+    rollover_drawn_offset: 0,
+    billing_model: 'fixed',
   });
 
   const interviewSelect = db.selects.find(({ table }) => table === 'interviews');

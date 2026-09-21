@@ -13,6 +13,7 @@ const { analyzeInterviewTranscriptById } = require('../../../scripts/backfillInt
 const { generateInterviewAnalysisV2 } = require('../interviewAnalysisV2');
 const { INSUFFICIENT_SUMMARY, isSubstantiveTranscript, scoreInterview } = require('../interviewScoring');
 const { getRoleInterviewAvailability, syncRoleInterviewLimitNotification } = require('../roleInterviewAvailability');
+const { syncInterviewCreditDraw } = require('../interviewCredits');
 const { transcriptCompletionTransition } = require('../interviewLifecycle');
 const { classifyCandidateUtterance } = require('../interviewUtteranceClassifier');
 const { excludeWarmupFromTranscript, excludeWarmupFromTranscriptItems } = require('../warmupExclusion');
@@ -1534,11 +1535,20 @@ async function applyTranscriptScoringForInterview({ interview, fresh, transcript
         roleId: roleIdForAvailability,
         clientId: clientIdForAvailability
       });
+      // The scored transcript is what makes this interview count, so this is the
+      // moment it draws a credit if the role's own allowance is already spent.
+      const draw = await syncInterviewCreditDraw({
+        db: supabaseAdmin,
+        clientId: clientIdForAvailability,
+        roleId: roleIdForAvailability,
+        interviewId: fresh?.id || interview?.id || null,
+        availability
+      });
       await syncRoleInterviewLimitNotification({
         db: supabaseAdmin,
         roleId: roleIdForAvailability,
         clientId: clientIdForAvailability,
-        remainingInterviews: availability.remaining_interviews,
+        remainingInterviews: draw.remaining_interviews,
         roleTitle: ''
       });
     } catch (syncErr) {
