@@ -207,7 +207,9 @@ test('signed agreement render uses the stored deadline in Denver regardless of h
 
 test('agreement checkout webhooks do not fall through to generic client activation', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'routes', 'webhooks', 'stripe.js'), 'utf8')
-  assert.match(source, /if \(!isPaidAgreementCheckout\) \{[\s\S]*buildClientSubscriptionUpdatesFromStripe/i)
+  // The guard also requires paymentSettled, so an unpaid completed session grants
+  // nothing on the generic path either. The agreement invariant is unchanged.
+  assert.match(source, /if \(!isPaidAgreementCheckout && paymentSettled\) \{[\s\S]*buildClientSubscriptionUpdatesFromStripe/i)
   assert.match(source, /const isAgreementCheckoutInvoice =[\s\S]*metadataSource === 'agreement_checkout'/i)
   assert.match(source, /customerId && !isManagedSubscriptionInvoice && !isAgreementCheckoutInvoice/i)
 })
