@@ -91,6 +91,9 @@ async function syncBillingInvoiceFromStripeEvent(stripeInvoice, request_id) {
 const LIVE_SUB_STATUSES = new Set(['active', 'trialing']);
 const MANAGED_SUBSCRIPTION_CHECKOUT_SOURCES = new Set(['admin_subscription_checkout', 'agreement_checkout']);
 
+// How long an activation claim may be held before another delivery may take it over.
+const ACTIVATION_CLAIM_STALE_MS = 15 * 60 * 1000;
+
 async function requireParentClientForStripeBilling(clientId, context = {}) {
   const result = await requireParentClient(supabaseAdmin, clientId, context);
   if (result.ok) return result;
@@ -301,6 +304,16 @@ function shouldIgnoreStaleSubscriptionUpdate(client, incomingSubscriptionId, eve
   return true;
 }
 
+// A stuck claim otherwise fails silently: the webhook answers 200, Stripe stops
+// retrying, and nothing else clears the claim. Surface it so it can be found.
+function warnIfActivationStuck(result, context) {
+  if (result?.ok === true || result?.status !== 'activation_in_progress') return;
+  console.warn('[stripe-webhook] agreement_activation_in_progress', {
+    ...context,
+    purchase_intent_id: result?.purchase_intent_id || null
+  });
+}
+
 async function markAgreementCheckoutPaid(agreementId, options = {}) {
   const normalizedAgreementId = String(agreementId || '').trim();
   if (!normalizedAgreementId) return;
@@ -360,18 +373,35 @@ async function claimAgreementPurchaseActivation(agreementId, checkoutSessionId, 
 
   const key = String(checkoutSessionId || '').trim() || `agreement:${normalizedAgreementId}`;
   const claimedAt = new Date().toISOString();
-  const { data: claimedIntent, error: claimError } = await db
+  // A claim older than this is treated as abandoned. The run holding it either died or
+  // failed to release it, and without a takeover the activation could never be retried:
+  // the claim blocks every later delivery and nothing else clears it.
+  const staleBefore = new Date(Date.now() - ACTIVATION_CLAIM_STALE_MS).toISOString();
+  let claimQuery = db
     .from('public_purchase_intents')
     .update({ activation_claimed_at: claimedAt, activation_claim_key: key, updated_at: claimedAt })
     .eq('id', intent.id)
     .eq('agreement_id', normalizedAgreementId)
     .neq('status', 'canceled')
-    .is('canceled_at', null)
-    .is('activation_claimed_at', null)
+    .is('canceled_at', null);
+  // Only an intent that has not completed may have a stale claim taken over.
+  claimQuery = status === 'completed'
+    ? claimQuery.is('activation_claimed_at', null)
+    : claimQuery.or(`activation_claimed_at.is.null,activation_claimed_at.lt.${staleBefore}`);
+  const { data: claimedIntent, error: claimError } = await claimQuery
     .select('id')
     .maybeSingle();
   if (claimError) throw new Error(claimError.message || 'Purchase activation claim failed');
   if (claimedIntent) {
+    if (intent.activation_claimed_at) {
+      console.warn('activation_claim_reclaimed', {
+        purchase_intent_id: intent.id,
+        agreement_id: normalizedAgreementId,
+        previous_claim_key: intent.activation_claim_key || null,
+        previous_claimed_at: intent.activation_claimed_at,
+        claim_key: key
+      });
+    }
     return { proceed: true, claimed: true, intentId: intent.id, key };
   }
 
@@ -857,7 +887,7 @@ router.post('/', async (req, res) => {
         }
 
         if (isPaidAgreementCheckout) {
-          await markAgreementCheckoutPaid(metadataAgreementId, {
+          const activationResult = await markAgreementCheckoutPaid(metadataAgreementId, {
             checkoutSessionId: pickId(eventObject?.id) || null,
             paidAt: toIsoFromUnixSeconds(event?.created) || new Date().toISOString(),
             subscription: checkoutSubscription || (subscriptionId ? await stripe.subscriptions.retrieve(subscriptionId) : null),
@@ -867,6 +897,11 @@ router.post('/', async (req, res) => {
             fallbackPlanTier: metadataPlanTier,
             fallbackBillingInterval: metadataBillingInterval,
             requestId: request_id
+          });
+          warnIfActivationStuck(activationResult, {
+            request_id,
+            agreement_id: metadataAgreementId,
+            event_type: event.type
           });
         }
       }
@@ -949,7 +984,7 @@ router.post('/', async (req, res) => {
       }
 
       if (isAgreementCheckoutInvoice) {
-        await markAgreementCheckoutPaid(metadataAgreementId, {
+        const activationResult = await markAgreementCheckoutPaid(metadataAgreementId, {
           paidAt: toIsoFromUnixSeconds(event?.created) || new Date().toISOString(),
           subscription: invoiceSubscription || null,
           fallbackCustomerId: customerId,
@@ -958,6 +993,11 @@ router.post('/', async (req, res) => {
           fallbackPlanTier: metadataPlanTier,
           fallbackBillingInterval: metadataBillingInterval,
           requestId: request_id
+        });
+        warnIfActivationStuck(activationResult, {
+          request_id,
+          agreement_id: metadataAgreementId,
+          event_type: event.type
         });
       }
 

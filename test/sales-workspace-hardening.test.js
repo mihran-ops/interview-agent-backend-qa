@@ -79,18 +79,28 @@ function activationClaimDb(intent, options = {}) {
         eq(column, value) { this.filters.push({ op: 'eq', column, value }); return this },
         neq(column, value) { this.filters.push({ op: 'neq', column, value }); return this },
         is(column, value) { this.filters.push({ op: 'is', column, value }); return this },
+        or(value) { this.filters.push({ op: 'or', value }); return this },
         async maybeSingle() {
-          const matches = state.intent && this.filters.every(({ op, column, value }) => {
+          // Evaluates one filter the way PostgREST would. The claim query reclaims stale
+          // holds with an or() over `is.null` and `lt.<iso>`, so both clause forms are read.
+          const passes = ({ op, column, value }) => {
             if (op === 'is') return value === null ? state.intent[column] == null : state.intent[column] === value
             if (op === 'neq') return String(state.intent[column] ?? '') !== String(value ?? '')
+            if (op === 'or') {
+              return String(value).split(',').some((clause) => {
+                const [col, operator, ...rest] = clause.split('.')
+                const operand = rest.join('.')
+                const current = state.intent[col]
+                if (operator === 'is') return operand === 'null' ? current == null : false
+                if (operator === 'lt') return current != null && String(current) < operand
+                return false
+              })
+            }
             return String(state.intent[column] ?? '') === String(value ?? '')
-          })
+          }
+          const matches = state.intent && this.filters.every(passes)
           if (this.action === 'update' && options.beforeClaim) options.beforeClaim(state)
-          const stillMatches = state.intent && this.filters.every(({ op, column, value }) => {
-            if (op === 'is') return value === null ? state.intent[column] == null : state.intent[column] === value
-            if (op === 'neq') return String(state.intent[column] ?? '') !== String(value ?? '')
-            return String(state.intent[column] ?? '') === String(value ?? '')
-          })
+          const stillMatches = state.intent && this.filters.every(passes)
           if (!matches || !stillMatches) return { data: null, error: null }
           if (this.action === 'update') Object.assign(state.intent, this.payload)
           return { data: state.intent ? { ...state.intent } : null, error: null }

@@ -36,6 +36,7 @@ function makeDb(rows) {
         eq() { return q; },
         neq() { return q; },
         is() { return q; },
+        or() { return q; },
         in() { return q; },
         not() { return q; },
         order() { return q; },
