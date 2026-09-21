@@ -4,7 +4,9 @@
     "blockReadsOutsideWorkingDirectories": true,
     "additionalDirectories": [],
     "allow": [
-      "Read(./**)", "Edit(./**)", "Write(./**)",
+      "Read(./**)",
+      "Edit(./**)",
+      "Write(./**)",
       "Bash"
     ],
     "deny": [
@@ -12,10 +14,10 @@
       "Read(//c/reviews/client-review/**)", "Edit(//c/reviews/client-review/**)",
       "Read(//**/.env)", "Read(//**/.env.*)", "Read(./.env)", "Read(./.env.*)",
       "Read(~/.ssh/**)", "Read(~/.aws/**)",
-      "Bash(cd /c:*)", "Bash(cd C::*)", "Bash(cd c::*)", "Bash(cd ..:*)", "Bash(cd ~:*)",
-      "Bash(pushd:*)", "Bash(powershell:*)", "Bash(pwsh:*)", "Bash(cmd:*)",
-      "Bash(git push:*)", "Bash(git remote:*)", "Bash(git reset --hard:*)",
-      "Bash(curl:*)", "Bash(wget:*)", "Bash(rm -rf:*)",
+      "Bash(cd /c*)", "Bash(cd C:*)", "Bash(cd c:*)", "Bash(cd ..*)", "Bash(cd ~*)",
+      "Bash(pushd *)", "Bash(powershell *)", "Bash(pwsh *)", "Bash(cmd *)",
+      "Bash(git push *)", "Bash(git push)", "Bash(git remote *)", "Bash(git reset --hard*)",
+      "Bash(curl *)", "Bash(wget *)", "Bash(rm -rf *)",
       "Write(./.claude/**)", "Edit(./.claude/**)"
     ]
   }
