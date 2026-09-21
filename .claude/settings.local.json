@@ -1,16 +1,22 @@
 {
   "permissions": {
-    "defaultMode": "default",
+    "defaultMode": "acceptEdits",
+    "blockReadsOutsideWorkingDirectories": true,
+    "additionalDirectories": [],
     "allow": [
-      "Read(**)", "Glob(**)", "Grep(**)", "Edit(./**)", "Write(./**)",
-      "Bash(npm test*)", "Bash(node --test*)", "Bash(npm install*)",
-      "Bash(git status)", "Bash(git diff *)", "Bash(git log *)",
-      "Bash(git add *)", "Bash(git commit *)", "Bash(git mv *)", "Bash(mkdir *)"
+      "Read(./**)", "Glob(./**)", "Grep(./**)", "Edit(./**)", "Write(./**)",
+      "Bash(*)"
     ],
     "deny": [
-      "Bash(git push *)", "Bash(git remote *)", "Bash(git reset --hard*)",
+      "Read(//c/Users/**)", "Edit(//c/Users/**)",
+      "Read(//c/reviews/client-review/**)", "Edit(//c/reviews/client-review/**)",
+      "Read(//**/.env)", "Read(//**/.env.*)", "Read(./.env)", "Read(./.env.*)",
+      "Read(~/.ssh/**)", "Read(~/.aws/**)",
+      "Bash(cd /c*)", "Bash(cd C:*)", "Bash(cd c:*)", "Bash(cd ..*)", "Bash(cd ~*)",
+      "Bash(pushd *)", "Bash(powershell *)", "Bash(pwsh *)", "Bash(cmd *)",
+      "Bash(git push *)", "Bash(git push)", "Bash(git remote *)", "Bash(git reset --hard*)",
       "Bash(curl *)", "Bash(wget *)", "Bash(rm -rf *)",
-      "Read(./.env)", "Read(./.env.*)", "Write(./.claude/**)", "Edit(./.claude/**)"
+      "Write(./.claude/**)", "Edit(./.claude/**)"
     ]
   }
 }

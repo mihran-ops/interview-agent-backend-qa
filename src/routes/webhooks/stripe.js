@@ -773,16 +773,20 @@ router.post('/', async (req, res) => {
           }
         }
       } else if (
-        event.type === 'checkout.session.completed'
+        (event.type === 'checkout.session.completed'
+          || event.type === 'checkout.session.async_payment_succeeded')
         && String(eventObject?.mode || '').toLowerCase() === 'subscription'
       ) {
+        // async_payment_succeeded is admitted because a delayed-notification payment
+        // settles after the session completes; without it an agreement paid that way
+        // would never activate. async_payment_failed is deliberately excluded.
         const subscriptionId = pickId(eventObject?.subscription);
         let targetClientId = null;
         let checkoutSubscription = null;
         const isPaidAgreementCheckout =
           metadataSource === 'agreement_checkout' &&
           !!metadataAgreementId &&
-          ['paid', 'no_payment_required'].includes(String(eventObject?.payment_status || '').trim().toLowerCase());
+          isSettledPayment(eventObject);
 
         if (subscriptionId) {
           if (metadataClientId) {
@@ -812,7 +816,9 @@ router.post('/', async (req, res) => {
               source: metadataSource || null
             });
             checkoutSubscription = await stripe.subscriptions.retrieve(subscriptionId);
-            if (!isPaidAgreementCheckout) {
+            // Same rule the additional-interviews path follows: a completed session
+            // whose payment has not settled grants nothing.
+            if (!isPaidAgreementCheckout && paymentSettled) {
               const updates = buildClientSubscriptionUpdatesFromStripe(checkoutSubscription, {
                 fallbackCustomerId: customerId,
                 fallbackSubscriptionId: subscriptionId,
