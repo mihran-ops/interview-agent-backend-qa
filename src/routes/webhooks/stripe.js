@@ -304,18 +304,131 @@ function shouldIgnoreStaleSubscriptionUpdate(client, incomingSubscriptionId, eve
 async function markAgreementCheckoutPaid(agreementId, options = {}) {
   const normalizedAgreementId = String(agreementId || '').trim();
   if (!normalizedAgreementId) return;
-  return activatePublicPurchaseAgreementCheckout({
-    agreementId: normalizedAgreementId,
-    checkoutSessionId: options.checkoutSessionId || null,
-    paidAt: options.paidAt || null,
-    subscription: options.subscription || null,
-    fallbackCustomerId: options.fallbackCustomerId || null,
-    fallbackSubscriptionId: options.fallbackSubscriptionId || null,
-    fallbackClientId: options.fallbackClientId || null,
-    fallbackPlanTier: options.fallbackPlanTier || null,
-    fallbackBillingInterval: options.fallbackBillingInterval || null,
-    requestId: options.requestId || null
+  const db = options.db || supabaseAdmin;
+  const claim = await claimAgreementPurchaseActivation(
+    normalizedAgreementId,
+    options.checkoutSessionId || null,
+    db
+  );
+  if (!claim.proceed) return claim.result;
+  try {
+    const activate = options.activate || activatePublicPurchaseAgreementCheckout;
+    const result = await activate({
+      agreementId: normalizedAgreementId,
+      checkoutSessionId: options.checkoutSessionId || null,
+      paidAt: options.paidAt || null,
+      subscription: options.subscription || null,
+      fallbackCustomerId: options.fallbackCustomerId || null,
+      fallbackSubscriptionId: options.fallbackSubscriptionId || null,
+      fallbackClientId: options.fallbackClientId || null,
+      fallbackPlanTier: options.fallbackPlanTier || null,
+      fallbackBillingInterval: options.fallbackBillingInterval || null,
+      requestId: options.requestId || null,
+      db
+    });
+    if (claim.claimed && result?.ok !== true) {
+      await releaseAgreementPurchaseActivationClaim(claim.intentId, claim.key, db);
+    }
+    return result;
+  } catch (error) {
+    if (claim.claimed) {
+      await releaseAgreementPurchaseActivationClaim(claim.intentId, claim.key, db);
+    }
+    throw error;
+  }
+}
+
+async function claimAgreementPurchaseActivation(agreementId, checkoutSessionId, db = supabaseAdmin) {
+  const normalizedAgreementId = String(agreementId || '').trim();
+  if (!normalizedAgreementId) return { proceed: false, result: { ok: false, status: 'agreement_missing' } };
+  const { data: intent, error: lookupError } = await db
+    .from('public_purchase_intents')
+    .select('id,status,activated_at,canceled_at,activation_claimed_at,activation_claim_key')
+    .eq('agreement_id', normalizedAgreementId)
+    .maybeSingle();
+  if (lookupError) throw new Error(lookupError.message || 'Public purchase intent lookup failed');
+  if (!intent) return { proceed: true, claimed: false };
+
+  const status = String(intent.status || '').trim().toLowerCase();
+  if (status === 'canceled' || intent.canceled_at) {
+    return {
+      proceed: false,
+      result: { ok: false, status: 'purchase_canceled', purchase_intent_id: intent.id }
+    };
+  }
+  if (status === 'completed' && intent.activated_at) return { proceed: true, claimed: false };
+
+  const key = String(checkoutSessionId || '').trim() || `agreement:${normalizedAgreementId}`;
+  const claimedAt = new Date().toISOString();
+  const { data: claimedIntent, error: claimError } = await db
+    .from('public_purchase_intents')
+    .update({ activation_claimed_at: claimedAt, activation_claim_key: key, updated_at: claimedAt })
+    .eq('id', intent.id)
+    .eq('agreement_id', normalizedAgreementId)
+    .neq('status', 'canceled')
+    .is('canceled_at', null)
+    .is('activation_claimed_at', null)
+    .select('id')
+    .maybeSingle();
+  if (claimError) throw new Error(claimError.message || 'Purchase activation claim failed');
+  if (claimedIntent) {
+    return { proceed: true, claimed: true, intentId: intent.id, key };
+  }
+
+  const { data: latest, error: latestError } = await db
+    .from('public_purchase_intents')
+    .select('id,agreement_id,status,activated_at,canceled_at,activation_claimed_at,activation_claim_key')
+    .eq('id', intent.id)
+    .maybeSingle();
+  if (latestError) throw new Error(latestError.message || 'Purchase activation state lookup failed');
+  const latestStatus = String(latest?.status || '').trim().toLowerCase();
+  if (latestStatus === 'completed' && latest?.activated_at) return { proceed: true, claimed: false };
+  if (latestStatus === 'canceled' || latest?.canceled_at) {
+    return {
+      proceed: false,
+      result: { ok: false, status: 'purchase_canceled', purchase_intent_id: intent.id }
+    };
+  }
+  if (latest?.agreement_id && String(latest.agreement_id).trim() !== normalizedAgreementId) {
+    return {
+      proceed: false,
+      result: { ok: false, status: 'agreement_superseded', purchase_intent_id: intent.id }
+    };
+  }
+  return {
+    proceed: false,
+    result: { ok: false, status: 'activation_in_progress', purchase_intent_id: intent.id }
+  };
+}
+
+async function releaseAgreementPurchaseActivationClaim(intentId, claimKey, db = supabaseAdmin) {
+  if (!intentId || !claimKey) return;
+  const { error } = await db
+    .from('public_purchase_intents')
+    .update({ activation_claimed_at: null, activation_claim_key: null, updated_at: new Date().toISOString() })
+    .eq('id', intentId)
+    .eq('activation_claim_key', claimKey)
+    .neq('status', 'completed')
+    .select('id')
+    .maybeSingle();
+  if (error) console.error('stripe_webhook_activation_claim_release_failed', {
+    purchase_intent_id: intentId,
+    error: error.message || String(error)
   });
+}
+
+async function shouldApplyGenericSubscriptionUpdate(metadata, db = supabaseAdmin) {
+  const source = String(metadata?.source || '').trim().toLowerCase();
+  const agreementId = String(metadata?.agreement_id || '').trim();
+  if (source !== 'agreement_checkout' || !agreementId) return true;
+  const { data: intent, error } = await db
+    .from('public_purchase_intents')
+    .select('id,status,activated_at,canceled_at')
+    .eq('agreement_id', agreementId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'Public purchase intent lookup failed');
+  if (!intent) return true;
+  return String(intent.status || '').trim().toLowerCase() === 'completed' && !!intent.activated_at && !intent.canceled_at;
 }
 
 router.post('/', async (req, res) => {
@@ -385,6 +498,10 @@ router.post('/', async (req, res) => {
       event.type === 'customer.subscription.deleted'
     ) {
       const customerId = pickId(eventObject?.customer);
+      const subscriptionMetadata = eventObject?.metadata && typeof eventObject.metadata === 'object'
+        ? eventObject.metadata
+        : {};
+      const allowGenericSubscriptionUpdate = await shouldApplyGenericSubscriptionUpdate(subscriptionMetadata);
       if (customerId) {
         const incomingSubscriptionId = pickId(eventObject?.id) || pickId(eventObject?.subscription) || null;
         const { data: client, error: clientErr } = await supabaseAdmin
@@ -393,7 +510,7 @@ router.post('/', async (req, res) => {
           .eq('stripe_customer_id', customerId)
           .maybeSingle();
         if (clientErr) throw new Error(clientErr.message || 'Client lookup failed');
-        if (client?.id && !shouldIgnoreStaleSubscriptionUpdate(client, incomingSubscriptionId, event.type)) {
+        if (client?.id && allowGenericSubscriptionUpdate && !shouldIgnoreStaleSubscriptionUpdate(client, incomingSubscriptionId, event.type)) {
           await requireParentClientForStripeBilling(client.id, {
             route: 'stripe_webhook_customer_subscription',
             event_type: event.type,
@@ -416,6 +533,12 @@ router.post('/', async (req, res) => {
               fallbackBillingInterval: updates?.billing_interval || null
             });
           }
+        } else if (client?.id && !allowGenericSubscriptionUpdate) {
+          console.warn('[stripe-webhook] agreement_subscription_update_deferred', {
+            agreement_id: String(subscriptionMetadata?.agreement_id || '').trim() || null,
+            client_id: client.id,
+            event_type: event.type
+          });
         }
       }
     } else if (
@@ -656,6 +779,10 @@ router.post('/', async (req, res) => {
         const subscriptionId = pickId(eventObject?.subscription);
         let targetClientId = null;
         let checkoutSubscription = null;
+        const isPaidAgreementCheckout =
+          metadataSource === 'agreement_checkout' &&
+          !!metadataAgreementId &&
+          ['paid', 'no_payment_required'].includes(String(eventObject?.payment_status || '').trim().toLowerCase());
 
         if (subscriptionId) {
           if (metadataClientId) {
@@ -685,50 +812,48 @@ router.post('/', async (req, res) => {
               source: metadataSource || null
             });
             checkoutSubscription = await stripe.subscriptions.retrieve(subscriptionId);
-            const updates = buildClientSubscriptionUpdatesFromStripe(checkoutSubscription, {
-              fallbackCustomerId: customerId,
-              fallbackSubscriptionId: subscriptionId,
-              fallbackBillingInterval: metadataBillingInterval,
-              fallbackSource: metadataSource,
-              fallbackPlanTier: metadataPlanTier
-            });
-            const { error: updateErr } = await supabaseAdmin
-              .from('clients')
-              .update(updates)
-              .eq('id', targetClientId);
-            if (updateErr) throw new Error(updateErr.message || 'Client update failed');
-
-            if (MANAGED_SUBSCRIPTION_CHECKOUT_SOURCES.has(metadataSource)) {
-              const planTierForSettings = String(updates?.plan_tier || metadataPlanTier || '').trim().toLowerCase();
-              const planSettingsUpserted = await upsertClientPlanSettingsFromSubscription(checkoutSubscription, targetClientId, {
+            if (!isPaidAgreementCheckout) {
+              const updates = buildClientSubscriptionUpdatesFromStripe(checkoutSubscription, {
+                fallbackCustomerId: customerId,
+                fallbackSubscriptionId: subscriptionId,
+                fallbackBillingInterval: metadataBillingInterval,
                 fallbackSource: metadataSource,
-                fallbackPlanTier: updates?.plan_tier || metadataPlanTier || null,
-                fallbackBillingInterval: updates?.billing_interval || metadataBillingInterval || null,
-                fallbackPlatformFee: metadata?.platform_fee,
-                fallbackPerRoleFee: metadata?.per_role_fee,
-                fallbackIncludedInterviewsPerRole: metadata?.included_interviews_per_role,
-                fallbackAdditionalInterviewFee: metadata?.additional_interview_fee
+                fallbackPlanTier: metadataPlanTier
               });
-              if (!planSettingsUpserted && planTierForSettings === 'enterprise') {
-                const err = new Error('Enterprise plan settings upsert skipped');
-                err.code = 'enterprise_plan_settings_upsert_skipped';
-                err.client_id = targetClientId;
-                err.subscription_id = subscriptionId;
-                err.source = metadataSource;
-                throw err;
+              const { error: updateErr } = await supabaseAdmin
+                .from('clients')
+                .update(updates)
+                .eq('id', targetClientId);
+              if (updateErr) throw new Error(updateErr.message || 'Client update failed');
+
+              if (MANAGED_SUBSCRIPTION_CHECKOUT_SOURCES.has(metadataSource)) {
+                const planTierForSettings = String(updates?.plan_tier || metadataPlanTier || '').trim().toLowerCase();
+                const planSettingsUpserted = await upsertClientPlanSettingsFromSubscription(checkoutSubscription, targetClientId, {
+                  fallbackSource: metadataSource,
+                  fallbackPlanTier: updates?.plan_tier || metadataPlanTier || null,
+                  fallbackBillingInterval: updates?.billing_interval || metadataBillingInterval || null,
+                  fallbackPlatformFee: metadata?.platform_fee,
+                  fallbackPerRoleFee: metadata?.per_role_fee,
+                  fallbackIncludedInterviewsPerRole: metadata?.included_interviews_per_role,
+                  fallbackAdditionalInterviewFee: metadata?.additional_interview_fee
+                });
+                if (!planSettingsUpserted && planTierForSettings === 'enterprise') {
+                  const err = new Error('Enterprise plan settings upsert skipped');
+                  err.code = 'enterprise_plan_settings_upsert_skipped';
+                  err.client_id = targetClientId;
+                  err.subscription_id = subscriptionId;
+                  err.source = metadataSource;
+                  throw err;
+                }
               }
             }
           }
         }
 
-        if (
-          metadataSource === 'agreement_checkout' &&
-          metadataAgreementId &&
-          ['paid', 'no_payment_required'].includes(String(eventObject?.payment_status || '').trim().toLowerCase())
-        ) {
+        if (isPaidAgreementCheckout) {
           await markAgreementCheckoutPaid(metadataAgreementId, {
             checkoutSessionId: pickId(eventObject?.id) || null,
-            paidAt: new Date().toISOString(),
+            paidAt: toIsoFromUnixSeconds(event?.created) || new Date().toISOString(),
             subscription: checkoutSubscription || (subscriptionId ? await stripe.subscriptions.retrieve(subscriptionId) : null),
             fallbackCustomerId: customerId,
             fallbackSubscriptionId: subscriptionId,
@@ -766,9 +891,14 @@ router.post('/', async (req, res) => {
       const metadataAgreementId = String(metadata?.agreement_id || '').trim();
       const metadataPlanTier = String(metadata?.plan_tier || '').trim().toLowerCase();
       const metadataBillingInterval = String(metadata?.billing_interval || '').trim().toLowerCase();
+      const isAgreementCheckoutInvoice =
+        event.type === 'invoice.payment_succeeded' &&
+        metadataSource === 'agreement_checkout' &&
+        !!metadataAgreementId;
       const isManagedSubscriptionInvoice =
         event.type === 'invoice.payment_succeeded' &&
         MANAGED_SUBSCRIPTION_CHECKOUT_SOURCES.has(metadataSource) &&
+        !isAgreementCheckoutInvoice &&
         !!metadataClientId &&
         ['basic', 'pro', 'enterprise'].includes(metadataPlanTier) &&
         ['monthly', 'annual'].includes(metadataBillingInterval);
@@ -812,13 +942,9 @@ router.post('/', async (req, res) => {
         if (activationErr) throw new Error(activationErr.message || 'Client activation update failed');
       }
 
-      if (
-        event.type === 'invoice.payment_succeeded' &&
-        metadataSource === 'agreement_checkout' &&
-        metadataAgreementId
-      ) {
+      if (isAgreementCheckoutInvoice) {
         await markAgreementCheckoutPaid(metadataAgreementId, {
-          paidAt: new Date().toISOString(),
+          paidAt: toIsoFromUnixSeconds(event?.created) || new Date().toISOString(),
           subscription: invoiceSubscription || null,
           fallbackCustomerId: customerId,
           fallbackSubscriptionId: subscriptionId,
@@ -829,7 +955,7 @@ router.post('/', async (req, res) => {
         });
       }
 
-      if (customerId && !isManagedSubscriptionInvoice) {
+      if (customerId && !isManagedSubscriptionInvoice && !isAgreementCheckoutInvoice) {
         const { data: client, error: clientErr } = await supabaseAdmin
           .from('clients')
           .select('id,stripe_subscription_id')
@@ -904,3 +1030,7 @@ router.post('/', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.shouldApplyGenericSubscriptionUpdate = shouldApplyGenericSubscriptionUpdate;
+module.exports.markAgreementCheckoutPaid = markAgreementCheckoutPaid;
+module.exports.claimAgreementPurchaseActivation = claimAgreementPurchaseActivation;
+module.exports.releaseAgreementPurchaseActivationClaim = releaseAgreementPurchaseActivationClaim;
