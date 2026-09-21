@@ -5,3 +5,6 @@ node_modules/
 
 # Ignore stray frontend copy
 interview-agent-frontend/
+
+# Client review deliverables: audit notes and findings, not shipped with the code.
+review/
