@@ -13,6 +13,7 @@ const { normalizeInterviewType, normalizeRoleInterviewTypeForRead } = require('.
 const { hasClientAccess, hasClientManagerAccess } = require('../../services/serviceRoleAuthorization');
 const { resolveBillingOwnerForScope } = require('../../services/clientBillingScope');
 const { findUnusedFirstRolePrepayCredit } = require('../../services/rolePurchaseFinalizer');
+const { syncRoleCreditsForStatusChange } = require('../../services/interviewCredits');
 
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const { createRoleJdReplacementRouter } = require('./roleJdReplacement');
@@ -368,6 +369,15 @@ router.patch('/:id/status', requireAuth, withClientScope, async (req, res) => {
       return res.status(500).json({ error: 'role_status_update_failed', detail: error.message });
     }
     if (!data) return res.status(404).json({ error: 'not_found' });
+
+    await syncRoleCreditsForStatusChange({
+      db,
+      clientId: roleRow.client_id,
+      roleId,
+      status,
+      closedAt: data.closed_at
+    });
+
     return res.json({ role: normalizeRoleInterviewTypeForRead(data) });
   } catch (e) {
     console.error('[PATCH /roles/:id/status] unexpected', e);

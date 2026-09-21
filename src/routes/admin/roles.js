@@ -9,6 +9,7 @@ const { loadEntityMap, resolveEntityFilter, withEntityFields } = require('../../
 const { normalizeInterviewType, normalizeRoleInterviewTypeForRead } = require('../../services/interviewTypes');
 const { getRoleInterviewAvailability } = require('../../services/roleInterviewAvailability');
 const { getRoleJdReplacementEligibility } = require('../../services/roleJdReplacement');
+const { syncRoleCreditsForStatusChange } = require('../../services/interviewCredits');
 const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
@@ -215,6 +216,15 @@ router.patch('/roles/:id/status', requireAuth, requireAdmin, async (req, res) =>
       .maybeSingle()
     if (error) return res.status(500).json({ error: 'role_status_update_failed', detail: error.message })
     if (!data) return res.status(404).json({ error: 'not_found' })
+
+    await syncRoleCreditsForStatusChange({
+      db: supabaseAdmin,
+      clientId: roleRow.client_id,
+      roleId,
+      status,
+      closedAt: data.closed_at
+    })
+
     return res.json({ item: normalizeRoleInterviewTypeForRead(data) })
   } catch (e) {
     console.error('role_status_update_exception:', e?.message || e)
