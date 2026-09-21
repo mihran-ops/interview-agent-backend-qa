@@ -75,6 +75,7 @@ const automationRouter = require('./src/routes/automation/index')
 const { requireAuth, withClientScope } = require('./src/middleware/auth')
 const { createRequireSalesRep } = require('./src/middleware/salesAuth')
 const { createSalesRouter } = require('./src/routes/sales/index')
+const { createInternalSalesIntegrationsRouter } = require('./src/routes/internal/salesIntegrations')
 const { createSupportVoiceGateway } = require('./src/services/supportVoiceGateway')
 const { isInterviewRecoveryCoreEnabled, isInterviewRecoveryCoreEmailEnabled } = require('./src/services/interviewAttemptService')
 const {
@@ -230,6 +231,13 @@ app.use((req, _res, next) => {
   } catch (_) {}
   next();
 });
+
+// Mounted ahead of the shared '/' routers, where the QA branch registers it.
+app.use('/internal/sales/integrations', createInternalSalesIntegrationsRouter({
+  db: supabaseAdmin,
+  env: process.env,
+  logger: console
+}))
 
 // ---------- auth middlewares ----------
 // NOTE: Auth + client scoping are centralized in src/middleware/auth

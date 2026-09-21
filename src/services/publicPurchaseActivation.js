@@ -10,6 +10,7 @@ const {
 const { ensureUserAndSendRecovery, redactEmail } = require('./recoveryHelper');
 const { sendMemberRecoveryEmail, sendAlphaScreenWelcomeEmail } = require('../clients/sendgrid');
 const { buildClientPwResetUrl } = require('../config/urlConfig');
+const { enqueueSalesWonDelivery } = require('./salesIntegrations');
 
 const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing']);
 const PRIVILEGED_MEMBER_ROLES = new Set(['manager', 'admin', 'owner', 'super_admin']);
@@ -98,7 +99,7 @@ function isPublicPurchaseAgreement(agreement, intent) {
   return Boolean(
     intent?.id ||
     publicPurchaseIntentIdFromAgreement(agreement) ||
-    cleanText(snapshot?.source).toLowerCase() === 'public_purchase_intent'
+    ['public_purchase_intent', 'sales_assisted'].includes(cleanText(snapshot?.source).toLowerCase())
   );
 }
 
@@ -359,7 +360,7 @@ async function loadPublicPurchaseIntent(db, agreement) {
   if (snapshotIntentId) {
     const { data, error } = await db
       .from('public_purchase_intents')
-      .select('id,status,selected_plan_key,selected_billing_cadence,package_snapshot,first_role_prepay_selected,first_role_prepay_amount_cents,first_role_normal_role_fee_cents,first_role_prepay_discount_percent,first_role_prepay_credit_type,company_legal_name,company_dba,buyer_first_name,buyer_last_name,buyer_email,buyer_phone,buyer_title,source_path,agreement_id,stripe_checkout_session_id,client_id,expires_at,created_at,updated_at')
+      .select('id,status,selected_plan_key,selected_billing_cadence,package_snapshot,first_role_prepay_selected,first_role_prepay_amount_cents,first_role_normal_role_fee_cents,first_role_prepay_discount_percent,first_role_prepay_credit_type,company_legal_name,company_dba,buyer_first_name,buyer_last_name,buyer_email,buyer_phone,buyer_title,source_path,agreement_id,stripe_checkout_session_id,client_id,channel,term_start_basis,canceled_at,activation_claimed_at,activation_claim_key,expires_at,created_at,updated_at')
       .eq('id', snapshotIntentId)
       .maybeSingle();
     if (error) throw new Error(error.message || 'Public purchase intent lookup failed');
@@ -369,7 +370,7 @@ async function loadPublicPurchaseIntent(db, agreement) {
   if (!agreementId) return null;
   const { data, error } = await db
     .from('public_purchase_intents')
-    .select('id,status,selected_plan_key,selected_billing_cadence,package_snapshot,first_role_prepay_selected,first_role_prepay_amount_cents,first_role_normal_role_fee_cents,first_role_prepay_discount_percent,first_role_prepay_credit_type,company_legal_name,company_dba,buyer_first_name,buyer_last_name,buyer_email,buyer_phone,buyer_title,source_path,agreement_id,stripe_checkout_session_id,client_id,expires_at,created_at,updated_at')
+    .select('id,status,selected_plan_key,selected_billing_cadence,package_snapshot,first_role_prepay_selected,first_role_prepay_amount_cents,first_role_normal_role_fee_cents,first_role_prepay_discount_percent,first_role_prepay_credit_type,company_legal_name,company_dba,buyer_first_name,buyer_last_name,buyer_email,buyer_phone,buyer_title,source_path,agreement_id,stripe_checkout_session_id,client_id,channel,term_start_basis,canceled_at,activation_claimed_at,activation_claim_key,expires_at,created_at,updated_at')
     .eq('agreement_id', agreementId)
     .maybeSingle();
   if (error) throw new Error(error.message || 'Public purchase intent lookup failed');
@@ -743,13 +744,29 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
 
   const { data: agreement, error: agreementErr } = await db
     .from('membership_agreements')
-    .select('id,client_id,status,is_current,checkout_status,checkout_session_id,checkout_paid_at,primary_admin_name,admin_email,client_legal_name,dba_trade_name,membership_tier,billing_option,auto_renew,template_snapshot')
+    .select('id,client_id,status,is_current,checkout_status,checkout_session_id,checkout_paid_at,primary_admin_name,admin_email,client_legal_name,dba_trade_name,membership_tier,billing_option,auto_renew,template_snapshot,superseded_by_agreement_id')
     .eq('id', agreementId)
     .maybeSingle();
   if (agreementErr) throw new Error(agreementErr.message || 'Agreement lookup failed');
   if (!agreement) return { ok: false, status: 'agreement_not_found' };
 
   const intent = await loadPublicPurchaseIntent(db, agreement);
+  if (cleanText(agreement.superseded_by_agreement_id) || (intent?.agreement_id && cleanText(intent.agreement_id) !== agreementId)) {
+    logger.warn?.('[public-purchase-activation] superseded_agreement_payment_requires_review', {
+      agreement_id: agreementId,
+      purchase_intent_id: intent?.id || null,
+      checkout_session_id: checkoutSessionId || null
+    });
+    return { ok: false, status: 'agreement_superseded', purchase_intent_id: intent?.id || null };
+  }
+  if (cleanText(intent?.status).toLowerCase() === 'canceled' || cleanText(intent?.canceled_at)) {
+    logger.warn?.('[public-purchase-activation] canceled_intent_payment_requires_review', {
+      agreement_id: agreementId,
+      purchase_intent_id: intent?.id || null,
+      checkout_session_id: checkoutSessionId || null
+    });
+    return { ok: false, status: 'purchase_canceled', purchase_intent_id: intent?.id || null };
+  }
   const packageSnapshot = getPackageSnapshot({ agreement, intent });
   const { planKey, billingInterval } = resolvePlanSelection({
     agreement,
@@ -792,6 +809,19 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
     checkout_status: 'paid',
     checkout_paid_at: paidAt
   };
+  if (cleanText(intent?.term_start_basis).toLowerCase() === 'successful_payment') {
+    const paidDate = new Date(paidAt);
+    if (!Number.isNaN(paidDate.getTime())) {
+      const initialTermStart = paidDate.toISOString().slice(0, 10);
+      const renewal = new Date(Date.UTC(
+        paidDate.getUTCFullYear() + 1,
+        paidDate.getUTCMonth(),
+        paidDate.getUTCDate()
+      ));
+      agreementPaidPayload.initial_term_start = initialTermStart;
+      agreementPaidPayload.initial_renewal_date = renewal.toISOString().slice(0, 10);
+    }
+  }
   if (checkoutSessionId) agreementPaidPayload.checkout_session_id = checkoutSessionId;
   const { error: agreementUpdateErr } = await db
     .from('membership_agreements')
@@ -803,13 +833,22 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
     const intentPayload = {
       status: 'completed',
       client_id: clientId,
+      activated_at: paidAt,
       updated_at: paidAt
     };
     if (checkoutSessionId) intentPayload.stripe_checkout_session_id = checkoutSessionId;
-    const { error: intentUpdateErr } = await db
+    let intentCompletionQuery = db
       .from('public_purchase_intents')
       .update(intentPayload)
-      .eq('id', intent.id);
+      .eq('id', intent.id)
+      .neq('status', 'canceled')
+      .is('canceled_at', null);
+    if (cleanText(intent.activation_claim_key)) {
+      intentCompletionQuery = intentCompletionQuery.eq('activation_claim_key', intent.activation_claim_key);
+    }
+    const { data: completedIntent, error: intentUpdateErr } = await intentCompletionQuery
+      .select('id')
+      .maybeSingle();
     if (intentUpdateErr) {
       logger.error?.('[public-purchase-activation] intent_completion_failed', {
         agreement_id: agreementId,
@@ -817,6 +856,11 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
         error: intentUpdateErr.message,
         code: intentUpdateErr.code || null
       });
+    }
+    if (!intentUpdateErr && !completedIntent) {
+      const err = new Error('Purchase activation lost its cancellation guard.');
+      err.code = 'public_purchase_activation_guard_lost';
+      throw err;
     }
   }
 
@@ -908,6 +952,21 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
     welcomeEmailStatus = buyerEmail ? 'not_sent_not_public_purchase' : 'not_sent_missing_buyer_email';
   }
 
+  let salesWonDeliveryStatus = 'not_applicable';
+  if (cleanText(intent?.channel).toLowerCase() === 'sales_assisted' && intent?.id) {
+    try {
+      const delivery = await enqueueSalesWonDelivery(intent.id, { db });
+      salesWonDeliveryStatus = delivery.status;
+    } catch (error) {
+      salesWonDeliveryStatus = 'enqueue_failed';
+      logger.error?.('[public-purchase-activation] sales_won_enqueue_failed', {
+        purchase_intent_id: intent.id,
+        agreement_id: agreementId,
+        error: error?.message || error
+      });
+    }
+  }
+
   return {
     ok: true,
     agreement_id: agreementId,
@@ -921,7 +980,8 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
     auth_status: setup.auth_status,
     setup_email_status: setup.setup_email_status,
     welcome_email_status: welcomeEmailStatus,
-    first_role_credit_status: firstRoleCreditStatus
+    first_role_credit_status: firstRoleCreditStatus,
+    sales_won_delivery_status: salesWonDeliveryStatus
   };
 }
 

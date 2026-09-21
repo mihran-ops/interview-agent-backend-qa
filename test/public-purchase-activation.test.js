@@ -33,7 +33,11 @@ const CLIENT_ID = '44444444-4444-4444-8444-444444444444'
 const BUYER_EMAIL = 'alex@acmedental.example'
 
 function matchesFilters(row, filters) {
-  return filters.every(({ column, value }) => String(row?.[column] ?? '') === String(value ?? ''))
+  return filters.every(({ column, value, op = 'eq' }) => {
+    if (op === 'is') return value === null ? row?.[column] == null : row?.[column] === value
+    if (op === 'neq') return String(row?.[column] ?? '') !== String(value ?? '')
+    return String(row?.[column] ?? '') === String(value ?? '')
+  })
 }
 
 class FakeQuery {
@@ -52,7 +56,17 @@ class FakeQuery {
   }
 
   eq(column, value) {
-    this.filters.push({ column, value })
+    this.filters.push({ column, value, op: 'eq' })
+    return this
+  }
+
+  neq(column, value) {
+    this.filters.push({ column, value, op: 'neq' })
+    return this
+  }
+
+  is(column, value) {
+    this.filters.push({ column, value, op: 'is' })
     return this
   }
 
@@ -84,7 +98,12 @@ class FakeQuery {
   }
 
   async maybeSingle() {
-    const row = this.rows().find((item) => matchesFilters(item, this.filters)) || null
+    const rows = this.rows().filter((item) => matchesFilters(item, this.filters))
+    const row = rows[0] || null
+    if (row && this.updatePayload) {
+      for (const item of rows) Object.assign(item, this.updatePayload)
+      this.db.updates.push({ table: this.table, rows, payload: this.updatePayload })
+    }
     return { data: row, error: null }
   }
 
@@ -163,7 +182,7 @@ function makeAgreement(plan = 'basic', cadence = 'monthly', options = {}) {
     billing_option: cadence,
     auto_renew: true,
     template_snapshot: {
-      source: 'public_purchase_intent',
+      source: options.source || 'public_purchase_intent',
       purchase_intent: { id: INTENT_ID },
       package_snapshot: packageSnapshot
     }
@@ -192,7 +211,8 @@ function makeIntent(plan = 'basic', cadence = 'monthly', options = {}) {
     buyer_email: BUYER_EMAIL,
     agreement_id: AGREEMENT_ID,
     stripe_checkout_session_id: 'cs_test_public',
-    client_id: CLIENT_ID
+    client_id: CLIENT_ID,
+    term_start_basis: options.termStartBasis || 'agreement_date'
   }
 }
 
@@ -370,6 +390,51 @@ test('public purchase webhook activation provisions Essential and Pro monthly/an
     })
     assert.doesNotMatch(JSON.stringify(result), /recovery-token|setup\.example/)
   }
+})
+
+test('public purchase webhook activation does not reactivate a canceled sales intent', async () => {
+  const db = makeDb('basic', 'monthly', { source: 'sales_assisted' })
+  db.purchaseIntents[0].status = 'canceled'
+  db.purchaseIntents[0].canceled_at = '2026-09-18T19:00:00.000Z'
+  const beforeClient = { ...db.clients[0] }
+
+  const result = await activatePublicPurchaseAgreementCheckout({
+    db,
+    authAdmin: makeAuthAdmin([]),
+    agreementId: AGREEMENT_ID,
+    checkoutSessionId: 'cs_test_public',
+    paidAt: '2026-09-18T19:01:00.000Z',
+    subscription: makeSubscription('monthly'),
+    requireParentClient: async () => ({ ok: true }),
+    logger: { error() {}, warn() {}, info() {} }
+  })
+
+  assert.deepEqual(result, { ok: false, status: 'purchase_canceled', purchase_intent_id: INTENT_ID })
+  assert.deepEqual(db.clients[0], beforeClient)
+  assert.equal(db.updates.length, 0)
+  assert.equal(db.inserts.length, 0)
+})
+
+test('sales-assisted activation starts the membership on successful payment', async () => {
+  const db = makeDb('basic', 'monthly', {
+    source: 'sales_assisted',
+    termStartBasis: 'successful_payment'
+  })
+  const { result } = await activateCase('basic', 'monthly', { db })
+  assert.equal(result.ok, true)
+  assert.equal(db.membershipAgreements[0].initial_term_start, '2026-06-23')
+  assert.equal(db.membershipAgreements[0].initial_renewal_date, '2027-06-23')
+  assert.equal(db.purchaseIntents[0].activated_at, '2026-06-23T12:00:00.000Z')
+})
+
+test('new sales-assisted activation preserves concrete agreement dates', async () => {
+  const db = makeDb('pro', 'annual', { source: 'sales_assisted', termStartBasis: 'agreement_date' })
+  db.membershipAgreements[0].initial_term_start = '2026-09-19'
+  db.membershipAgreements[0].initial_renewal_date = '2027-09-19'
+  const { result } = await activateCase('pro', 'annual', { db })
+  assert.equal(result.ok, true)
+  assert.equal(db.membershipAgreements[0].initial_term_start, '2026-09-19')
+  assert.equal(db.membershipAgreements[0].initial_renewal_date, '2027-09-19')
 })
 
 test('public purchase activation creates first-role prepay credit once when selected', async () => {
