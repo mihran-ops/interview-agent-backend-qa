@@ -57,6 +57,16 @@ const INTENT_SELECT_COLUMNS = [
   'buyer_phone',
   'buyer_title',
   'source_path',
+  'channel',
+  'created_by_user_id',
+  'created_by_email',
+  'ghl_contact_id',
+  'ghl_opportunity_id',
+  'promotion_code',
+  'promotion_label',
+  'promotion_discount_cents',
+  'initial_payment_cents',
+  'activated_at',
   'agreement_id',
   'stripe_checkout_session_id',
   'client_id',
@@ -211,6 +221,8 @@ function parseFilters(query = {}, now = new Date()) {
     status: VALID_STATUS_KEYS.has(status) ? status : '',
     membership: ['basic', 'pro', 'enterprise'].includes(membership) ? membership : '',
     billing_cadence: ['monthly', 'annual'].includes(cadence) ? cadence : '',
+    channel: ['retail', 'sales_assisted'].includes(lowerText(query.channel, 40)) ? lowerText(query.channel, 40) : '',
+    representative: lowerText(query.representative || query.created_by_email, 254),
     search: lowerText(query.search || query.q, 160),
     page: parsePositiveInt(query.page, 1, 10000),
     limit: parsePositiveInt(query.limit, DEFAULT_LIMIT, MAX_LIMIT)
@@ -314,6 +326,8 @@ async function readIntentRows(db, filters) {
   query = applyDateRange(query, 'created_at', filters).order('created_at', { ascending: false }).limit(READ_LIMIT);
   if (filters.membership && filters.membership !== 'enterprise') query = query.eq('selected_plan_key', filters.membership);
   if (filters.billing_cadence) query = query.eq('selected_billing_cadence', filters.billing_cadence);
+  if (filters.channel) query = query.eq('channel', filters.channel);
+  if (filters.representative) query = query.ilike('created_by_email', filters.representative);
   return runQuery(query, 'public_purchase_intents_read_failed');
 }
 
@@ -743,7 +757,18 @@ function sanitizePurchaseItem({ intent, agreement, client, member, emailSummary,
     membership,
     first_role_prepay: firstRolePrepay,
     source: {
-      path: trimText(intent?.source_path, 300) || null
+      path: trimText(intent?.source_path, 300) || null,
+      channel: trimText(intent?.channel, 40) || 'retail',
+      representative_user_id: trimText(intent?.created_by_user_id, 120) || null,
+      representative_email: lowerText(intent?.created_by_email, 254) || null,
+      ghl_contact_id: trimText(intent?.ghl_contact_id, 160) || null,
+      ghl_opportunity_id: trimText(intent?.ghl_opportunity_id, 160) || null
+    },
+    sales_pricing: {
+      promotion_code: trimText(intent?.promotion_code, 80) || null,
+      promotion_label: trimText(intent?.promotion_label, 160) || null,
+      promotion_discount_cents: Number(intent?.promotion_discount_cents || 0),
+      initial_payment_cents: Number(intent?.initial_payment_cents || 0)
     },
     agreement: agreement ? {
       id: trimText(agreement.id, 120),
@@ -783,7 +808,8 @@ function sanitizePurchaseItem({ intent, agreement, client, member, emailSummary,
     },
     expires_at: trimText(intent?.expires_at, 40) || null,
     created_at: trimText(intent?.created_at, 40) || null,
-    updated_at: trimText(intent?.updated_at, 40) || null
+    updated_at: trimText(intent?.updated_at, 40) || null,
+    activated_at: trimText(intent?.activated_at, 40) || null
   };
   const agreementLinkEligibility = buildAgreementLinkResendEligibility({ intent, agreement, item });
   item.recovery_actions = {
@@ -1296,6 +1322,8 @@ async function buildAdminPublicPurchasesPayload({ db, query = {}, now = new Date
       status: filters.status || 'all',
       membership: filters.membership || 'all',
       billing_cadence: filters.billing_cadence || 'all',
+      channel: filters.channel || 'all',
+      representative: filters.representative || '',
       search: filters.search || ''
     },
     summary: buildSummary(allItems),

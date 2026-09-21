@@ -302,13 +302,23 @@
         </td>
         <td>
           <div class="triplet-label">Initial Term Start</div>
+          {{#if term_starts_on_payment}}
+          <div class="triplet-value">Successful initial payment date</div>
+          <div class="triplet-note">Payment controls activation</div>
+          {{else}}
           <div class="triplet-value">{{initial_term_start_display}}</div>
           <div class="triplet-note">Activation date</div>
+          {{/if}}
         </td>
         <td>
           <div class="triplet-label">Initial Renewal Date</div>
+          {{#if term_starts_on_payment}}
+          <div class="triplet-value">One year after initial payment</div>
+          <div class="triplet-note">12-month auto-renewal</div>
+          {{else}}
           <div class="triplet-value">{{initial_renewal_date_display}}</div>
           <div class="triplet-note">12-month auto-renewal</div>
+          {{/if}}
         </td>
       </tr>
     </table>
@@ -385,6 +395,9 @@
     </ul>
 
     <p class="generated-note">Prepared {{generated_at_label}}</p>
+    {{#if agreement_expires_at_label}}
+    <p class="generated-note"><strong>Signature and initial payment deadline:</strong> {{agreement_expires_at_label}}. After this deadline, alphaSource must issue a newly dated agreement for signature.</p>
+    {{/if}}
   </section>
 
   <section class="page page-break">
@@ -399,7 +412,11 @@
     <p class="section-paragraph">alphaSource provides an AI-assisted hiring and interview workflow platform that may include role creation, candidate intake, resume processing, candidate verification, AI-led interview workflows, dashboards, reporting, accommodation-request workflows, and related analytics, summaries, and reports. Features may vary by plan, configuration, availability, and third-party service dependencies.</p>
 
     <h2 class="section-title">2. Membership Term</h2>
-    <p class="section-paragraph">Each Membership term begins on {{initial_term_start_long}} and continues for an initial term of twelve (12) months. Unless either party provides written notice of non-renewal at least {{notice_deadline_plain}} days before the end of the then-current term, the Membership will automatically renew for successive twelve (12) month renewal terms.</p>
+    {{#if term_starts_on_payment}}
+    <p class="section-paragraph">The Membership term begins on the date alphaSource successfully receives the initial payment and continues for an initial term of twelve (12) months. If this Agreement is signed before payment is received, the successful payment date controls the Membership start date, and renewal and notice dates tied to the Membership term are calculated from that date. Unless either party provides written notice of non-renewal at least {{notice_deadline_plain}} days before the end of the then-current term, the Membership will automatically renew for successive twelve (12) month renewal terms.</p>
+    {{else}}
+    <p class="section-paragraph">The initial Membership term begins on {{initial_term_start_long}} and has an initial renewal date of {{initial_renewal_date_long}}. Unless either party provides written notice of non-renewal at least {{notice_deadline_plain}} days before the end of the then-current term, the Membership will automatically renew for successive twelve (12) month renewal terms.</p>
+    {{/if}}
     <p class="section-paragraph">Client may cancel the Membership at any time by providing notice to alphaSource in accordance with Section 15 below. Cancellation will stop future renewal of the Membership but will not terminate or reduce Client’s payment obligations for the remainder of the then-current term. Client’s selected {{billing_option}} payment schedule will remain in effect through the end of the then-current term, and no additional cancellation fee will be charged.</p>
     <p class="section-paragraph">All fees for the then-current term are non-refundable. No refunds or partial-term credits will be issued for early cancellation, non-use, reduced usage, or early termination, except as otherwise required by law or expressly provided in this Agreement.</p>
 

@@ -199,6 +199,59 @@ test('subscription checkout adds configured one-time first-role prepay line item
     assert.equal(payload.subscription_data.metadata.first_role_prepay_amount_cents, '35900')
     assert.equal(payload.metadata.agreement_id, 'agreement-1')
     assert.equal(payload.metadata.purchase_intent_id, 'intent-1')
+    assert.equal('expires_at' in payload, false)
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
+
+test('sales agreement checkout enforces Stripe expiration bounds without changing legacy callers', async () => {
+  const previous = {
+    STRIPE_PRICE_BASIC_MONTHLY: process.env.STRIPE_PRICE_BASIC_MONTHLY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY
+  }
+  process.env.STRIPE_PRICE_BASIC_MONTHLY = 'price_basic_monthly'
+  process.env.STRIPE_SECRET_KEY = 'sk_test_fake'
+  const baseNow = '2026-11-01T06:05:00.000Z'
+  try {
+    const shortCalls = { sessions: [], customerUpdates: [], customerCreates: [], subscriptionLists: [] }
+    const shortCheckout = loadCheckout({ stripeCalls: shortCalls }).createSubscriptionCheckoutSession
+    await assert.rejects(
+      () => shortCheckout({
+        clientId: 'client-1',
+        planTier: 'basic',
+        billingInterval: 'monthly',
+        checkoutExpiresAt: '2026-11-01T06:25:00.000Z',
+        now: baseNow
+      }),
+      (error) => error.code === 'agreement_checkout_window_closed'
+    )
+    assert.equal(shortCalls.sessions.length, 0)
+
+    const twoHourCalls = { sessions: [], customerUpdates: [], customerCreates: [], subscriptionLists: [] }
+    const twoHourCheckout = loadCheckout({ stripeCalls: twoHourCalls }).createSubscriptionCheckoutSession
+    await twoHourCheckout({
+      clientId: 'client-1',
+      planTier: 'basic',
+      billingInterval: 'monthly',
+      checkoutExpiresAt: '2026-11-01T08:05:00.000Z',
+      now: baseNow
+    })
+    assert.equal(twoHourCalls.sessions[0].payload.expires_at, Date.parse('2026-11-01T08:05:00.000Z') / 1000)
+
+    const longCalls = { sessions: [], customerUpdates: [], customerCreates: [], subscriptionLists: [] }
+    const longCheckout = loadCheckout({ stripeCalls: longCalls }).createSubscriptionCheckoutSession
+    await longCheckout({
+      clientId: 'client-1',
+      planTier: 'basic',
+      billingInterval: 'monthly',
+      checkoutExpiresAt: '2026-11-02T07:05:00.000Z',
+      now: baseNow
+    })
+    assert.equal(longCalls.sessions[0].payload.expires_at, (Date.parse(baseNow) + 24 * 60 * 60 * 1000 - 1000) / 1000)
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]
@@ -236,6 +289,34 @@ test('subscription checkout fails selected first-role prepay when one-time Strip
       /First-role prepay Stripe price is not configured/
     )
     assert.equal(stripeCalls.sessions.length, 0)
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})
+
+test('subscription checkout applies a validated promotion code instead of allowing arbitrary entry', async () => {
+  const previous = {
+    STRIPE_PRICE_BASIC_MONTHLY: process.env.STRIPE_PRICE_BASIC_MONTHLY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY
+  }
+  const stripeCalls = { sessions: [], customerUpdates: [], customerCreates: [], subscriptionLists: [] }
+  process.env.STRIPE_PRICE_BASIC_MONTHLY = 'price_basic_monthly'
+  process.env.STRIPE_SECRET_KEY = 'sk_test_fake'
+  try {
+    const { createSubscriptionCheckoutSession } = loadCheckout({ stripeCalls })
+    await createSubscriptionCheckoutSession({
+      clientId: 'client-1',
+      planTier: 'basic',
+      billingInterval: 'monthly',
+      promotionCodeId: 'promo_validated',
+      requestContext: { forwardedHost: 'api.qa.alphasourceai.com' }
+    })
+    const payload = stripeCalls.sessions[0].payload
+    assert.deepEqual(payload.discounts, [{ promotion_code: 'promo_validated' }])
+    assert.equal('allow_promotion_codes' in payload, false)
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]

@@ -14,6 +14,7 @@ const {
   ensurePublicAgreementCheckoutClient,
   extractErrorMessage,
   hashToken,
+  isExpired,
   isPublicPurchaseIntentAgreement,
   loadAgreementByTokenHash,
   loadPublicPurchaseIntentForAgreement,
@@ -67,6 +68,15 @@ router.post('/checkout-session', publicAgreementTokenRateLimit, async (req, res)
         error: 'agreement_checkout_already_paid',
         code: 'agreement_checkout_already_paid',
         detail: 'Checkout is already completed for this agreement.',
+        request_id
+      });
+    }
+    const explicitAgreementDeadline = String(agreement.agreement_expires_at || '').trim();
+    if (explicitAgreementDeadline && isExpired(explicitAgreementDeadline)) {
+      return res.status(410).json({
+        error: 'agreement_expired',
+        code: 'agreement_expired',
+        detail: 'This agreement expired before payment. Request a newly dated agreement.',
         request_id
       });
     }
@@ -177,10 +187,12 @@ router.post('/checkout-session', publicAgreementTokenRateLimit, async (req, res)
       metadataSource: 'agreement_checkout',
       metadata: checkoutMetadata,
       firstRolePrepay,
+      promotionCodeId: purchaseIntent?.promotion_code_id || '',
       enterpriseFees,
       embedded: embeddedCheckoutRequested,
       cancelUrl,
       idempotencyKey,
+      checkoutExpiresAt: explicitAgreementDeadline || null,
       requestContext: {
         forwardedProto: req.headers?.['x-forwarded-proto'],
         forwardedHost: req.headers?.['x-forwarded-host'],

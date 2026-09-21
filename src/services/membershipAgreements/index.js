@@ -33,6 +33,7 @@ const AGREEMENTS_BUCKET = process.env.SUPABASE_AGREEMENTS_BUCKET || 'agreements'
 const MEMBERSHIP_INTERNAL_NOTIFY_EMAIL = 'memberships@alphasourceai.com';
 const SIGNED_URL_TTL_SECONDS = Math.max(60, Number(process.env.SIGNED_URL_TTL_SECONDS || 600));
 const EMAIL_SIGNED_URL_TTL_SECONDS = Math.max(300, Number(process.env.AGREEMENT_SIGNED_EMAIL_LINK_TTL_SECONDS || 604800));
+const SALES_AGREEMENT_TIME_ZONE = 'America/Denver';
 const PUBLIC_TOKEN_RATE_WINDOW_MS = 10 * 60 * 1000;
 const PUBLIC_TOKEN_RATE_MAX = Number(process.env.MEMBERSHIP_AGREEMENT_PUBLIC_TOKEN_RATE_MAX || 60);
 const publicAgreementTokenRateBuckets = new Map();
@@ -231,7 +232,9 @@ function isPublicPurchaseIntentAgreement(agreement) {
   const snapshot = agreement?.template_snapshot && typeof agreement.template_snapshot === 'object'
     ? agreement.template_snapshot
     : null;
-  return String(snapshot?.source || '').trim() === 'public_purchase_intent';
+  return ['public_purchase_intent', 'sales_assisted'].includes(
+    String(snapshot?.source || '').trim().toLowerCase()
+  );
 }
 
 function publicPurchaseIntentIdFromAgreement(agreement) {
@@ -394,7 +397,7 @@ async function loadPublicPurchaseIntentForAgreement(agreement) {
 
   const { data, error } = await supabaseAdmin
     .from('public_purchase_intents')
-    .select('id,status,selected_plan_key,selected_billing_cadence,package_snapshot,first_role_prepay_selected,first_role_prepay_amount_cents,first_role_normal_role_fee_cents,first_role_prepay_discount_percent,first_role_prepay_credit_type,company_legal_name,company_dba,buyer_first_name,buyer_last_name,buyer_email,buyer_phone,buyer_title,source_path,agreement_id,stripe_checkout_session_id,client_id,expires_at,created_at')
+    .select('id,status,selected_plan_key,selected_billing_cadence,package_snapshot,first_role_prepay_selected,first_role_prepay_amount_cents,first_role_normal_role_fee_cents,first_role_prepay_discount_percent,first_role_prepay_credit_type,company_legal_name,company_dba,buyer_first_name,buyer_last_name,buyer_email,buyer_phone,buyer_title,source_path,agreement_id,stripe_checkout_session_id,client_id,promotion_code_id,expires_at,created_at')
     .eq('id', purchaseIntentId)
     .maybeSingle();
   if (error) {
@@ -492,6 +495,7 @@ function resolveAgreementPublicSessionState(row) {
 
   const status = String(row.status || '').trim().toLowerCase();
   const checkoutStatus = String(row.checkout_status || '').trim().toLowerCase();
+  const explicitDeadlineExpired = Boolean(row.agreement_expires_at) && isExpired(row.agreement_expires_at);
 
   if (status === 'sent') {
     if (isExpired(row.signer_token_expires_at)) {
@@ -509,6 +513,14 @@ function resolveAgreementPublicSessionState(row) {
   }
 
   if (status === 'signed' && row.is_current === true) {
+    if (checkoutStatus !== 'paid' && explicitDeadlineExpired) {
+      return {
+        ok: false,
+        status: 410,
+        code: 'agreement_expired',
+        detail: 'This agreement expired before payment. Request a newly dated agreement.'
+      };
+    }
     if (!String(row.client_id || '').trim() && isPublicPurchaseIntentAgreement(row)) {
       return {
         ok: true,
@@ -565,6 +577,21 @@ function buildAgreementInputFromRow(row) {
   });
 }
 
+function buildExecutedMembershipAgreementHtml(agreement, execution) {
+  const normalizedInput = buildAgreementInputFromRow(agreement);
+  const generatedAt = String(agreement?.template_snapshot?.generated_at || agreement?.created_at || '').trim();
+  const agreementInput = {
+    ...normalizedInput,
+    agreement_expires_at: agreement?.agreement_expires_at || normalizedInput.agreement_expires_at
+  };
+  return buildMembershipAgreementHtml(agreementInput, {
+    showPackageTerms: isPublicPurchaseIntentAgreement(agreement),
+    timeZone: SALES_AGREEMENT_TIME_ZONE,
+    ...(generatedAt ? { generatedAt } : {}),
+    execution
+  });
+}
+
 async function createAgreementSignedUrl(path, expiresInSeconds) {
   const key = String(path || '').trim();
   if (!key) return null;
@@ -579,7 +606,7 @@ async function createAgreementSignedUrl(path, expiresInSeconds) {
 async function loadAgreementByTokenHash(tokenHash) {
   const { data, error } = await supabaseAdmin
     .from('membership_agreements')
-    .select('id,client_id,status,is_current,checkout_status,checkout_session_id,checkout_created_at,client_legal_name,dba_trade_name,primary_admin_name,admin_email,membership_tier,initial_term_start,initial_renewal_date,billing_option,auto_renew,notice_deadline_days,template_snapshot,draft_pdf_path,executed_pdf_path,signer_token_expires_at,opened_at,sent_at,signed_at,signer_typed_name')
+    .select('id,client_id,status,is_current,checkout_status,checkout_session_id,checkout_created_at,client_legal_name,dba_trade_name,primary_admin_name,admin_email,membership_tier,initial_term_start,initial_renewal_date,billing_option,auto_renew,notice_deadline_days,template_snapshot,draft_pdf_path,executed_pdf_path,signer_token_expires_at,agreement_expires_at,opened_at,sent_at,signed_at,signer_typed_name,superseded_by_agreement_id')
     .eq('signer_token_hash', tokenHash)
     .maybeSingle();
 
@@ -662,6 +689,7 @@ module.exports = {
   SIGNED_URL_TTL_SECONDS,
   appendQueryParam,
   buildAgreementInputFromRow,
+  buildExecutedMembershipAgreementHtml,
   buildFirstRolePrepayCheckout,
   buildMembershipAgreementHtml,
   buildMembershipAgreementSignUrl,
@@ -674,6 +702,7 @@ module.exports = {
   getClientIp,
   hashToken,
   htmlToPdf,
+  isExpired,
   isPublicPurchaseIntentAgreement,
   loadAgreementByTokenHash,
   loadPublicPurchaseIntentForAgreement,

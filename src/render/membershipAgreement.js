@@ -29,6 +29,11 @@ function normalizeBillingOption(value) {
   return normalized === 'annual' ? 'annual' : 'monthly';
 }
 
+function normalizeTermStartBasis(value) {
+  const normalized = normalizeText(value).toLowerCase();
+  return normalized === 'successful_payment' ? 'successful_payment' : 'agreement_date';
+}
+
 function normalizeAutoRenew(value) {
   if (typeof value === 'boolean') return value;
   const normalized = normalizeText(value).toLowerCase();
@@ -222,6 +227,8 @@ function normalizeMembershipAgreementInput(input = {}) {
     first_role_prepay: normalizeFirstRolePrepayInput(input.first_role_prepay || input.firstRolePrepay),
     initial_term_start: normalizeDateInput(input.initial_term_start || input.initialTermStart),
     initial_renewal_date: normalizeDateInput(input.initial_renewal_date || input.initialRenewalDate),
+    agreement_expires_at: normalizeText(input.agreement_expires_at || input.agreementExpiresAt),
+    term_start_basis: normalizeTermStartBasis(input.term_start_basis || input.termStartBasis),
     billing_option: normalizeBillingOption(input.billing_option || input.billingOption),
     auto_renew: normalizeAutoRenew(input.auto_renew ?? input.autoRenew),
     notice_deadline_days: normalizeNoticeDays(input.notice_deadline_days || input.noticeDeadlineDays)
@@ -250,18 +257,28 @@ function buildMembershipAgreementHtml(payload = {}, options = {}) {
   const normalized = normalizeMembershipAgreementInput(payload);
   const execution = normalizeExecutionInput(options.execution || payload.execution || {});
   const showPackageTerms = shouldShowPackageTerms(payload, options);
-  const now = new Date();
+  const now = options.generatedAt ? new Date(options.generatedAt) : new Date();
+  const displayTimeZone = normalizeText(options.timeZone || options.time_zone) || undefined;
   const generatedAtIso = now.toISOString();
   const generatedAtLabel = now.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
+    ...(displayTimeZone ? { timeZone: displayTimeZone } : {})
   });
+  const agreementExpiresAt = normalized.agreement_expires_at ? new Date(normalized.agreement_expires_at) : null;
+  const agreementExpiresAtLabel = agreementExpiresAt && Number.isFinite(agreementExpiresAt.getTime())
+    ? new Date(agreementExpiresAt.getTime() - 1).toLocaleString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',
+        timeZoneName: 'short', ...(displayTimeZone ? { timeZone: displayTimeZone } : {})
+      })
+    : '';
 
   const renderData = {
     logo_src: readLogoAsDataUri(),
     generated_at: generatedAtIso,
     generated_at_label: generatedAtLabel,
+    agreement_expires_at_label: agreementExpiresAtLabel,
     client_legal_name: normalized.client_legal_name || '______________________________',
     dba_trade_name: normalized.dba_trade_name || '______________________________',
     primary_admin_name: normalized.primary_admin_name || '______________________________',
@@ -282,6 +299,7 @@ function buildMembershipAgreementHtml(payload = {}, options = {}) {
     first_role_prepay_discount_percent: normalized.first_role_prepay.discount_percent || '10',
     initial_term_start_display: formatDateShort(normalized.initial_term_start),
     initial_renewal_date_display: formatDateShort(normalized.initial_renewal_date),
+    term_starts_on_payment: normalized.term_start_basis === 'successful_payment',
     billing_option: normalized.billing_option === 'annual' ? 'Annual' : 'Monthly',
     auto_renew: normalized.auto_renew ? 'Yes' : 'No',
     notice_deadline_days: `${normalized.notice_deadline_days} Days`,

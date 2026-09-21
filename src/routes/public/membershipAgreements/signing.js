@@ -9,15 +9,13 @@ const {
   EMAIL_SIGNED_URL_TTL_SECONDS,
   MEMBERSHIP_INTERNAL_NOTIFY_EMAIL,
   SIGNED_URL_TTL_SECONDS,
-  buildAgreementInputFromRow,
-  buildMembershipAgreementHtml,
+  buildExecutedMembershipAgreementHtml,
   createAgreementSignedUrl,
   crypto,
   extractErrorMessage,
   getClientIp,
   hashToken,
   htmlToPdf,
-  isPublicPurchaseIntentAgreement,
   loadAgreementByTokenHash,
   normalizeAccepted,
   parseSignaturePayload,
@@ -106,7 +104,7 @@ router.post('/session', publicAgreementTokenRateLimit, async (req, res) => {
         notice_deadline_days: agreement.notice_deadline_days,
         initial_term_start: agreement.initial_term_start,
         initial_renewal_date: agreement.initial_renewal_date,
-        expires_at: agreement.signer_token_expires_at,
+        expires_at: agreement.agreement_expires_at || agreement.signer_token_expires_at,
         sent_at: agreement.sent_at,
         signed_at: agreement.signed_at,
         opened_at: openedAt,
@@ -213,15 +211,11 @@ router.post('/sign', publicAgreementTokenRateLimit, async (req, res) => {
       });
     }
 
-    const agreementInput = buildAgreementInputFromRow(agreement);
-    const { html } = buildMembershipAgreementHtml(agreementInput, {
-      showPackageTerms: isPublicPurchaseIntentAgreement(agreement),
-      execution: {
-        accepted: true,
-        signer_typed_name: typedName,
-        signature_image_src: signaturePayload.dataUrl,
-        signed_at: signedAt
-      }
+    const { html } = buildExecutedMembershipAgreementHtml(agreement, {
+      accepted: true,
+      signer_typed_name: typedName,
+      signature_image_src: signaturePayload.dataUrl,
+      signed_at: signedAt
     });
 
     const executedPdf = await htmlToPdf(html, {
@@ -398,3 +392,4 @@ router.post('/sign', publicAgreementTokenRateLimit, async (req, res) => {
 
 
 module.exports = router;
+module.exports.buildExecutedMembershipAgreementHtml = buildExecutedMembershipAgreementHtml;

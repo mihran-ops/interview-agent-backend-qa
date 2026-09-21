@@ -39,6 +39,11 @@ class FakeQuery {
     return this;
   }
 
+  ilike(column, value) {
+    this.filters.push({ column, value: String(value).toLowerCase(), caseInsensitive: true });
+    return this;
+  }
+
   in(column, values) {
     this.inFilters.push({ column, values: new Set((values || []).map((value) => String(value))) });
     return this;
@@ -91,7 +96,10 @@ class FakeQuery {
     }
     let rows = (this.db.tables[this.table] || []).map((row) => ({ ...row }));
     for (const filter of this.filters) {
-      rows = rows.filter((row) => String(row[filter.column] || '') === filter.value);
+      rows = rows.filter((row) => {
+        const value = String(row[filter.column] || '');
+        return filter.caseInsensitive ? value.toLowerCase() === filter.value : value === filter.value;
+      });
     }
     for (const filter of this.inFilters) {
       rows = rows.filter((row) => filter.values.has(String(row[filter.column] || '')));
@@ -403,6 +411,48 @@ test('admin public purchases filters by status, cadence, membership, search, and
   assert.equal(payload.purchases.items.length, 1);
   assert.equal(payload.purchases.items[0].membership.key, 'pro');
   assert.equal(payload.purchases.items[0].membership.billing_cadence, 'annual');
+});
+
+test('admin public purchases exposes and filters sales attribution safely', async () => {
+  const db = makeDb({
+    public_purchase_intents: [
+      {
+        ...intent({ id: 'intent-sales', company: 'Sales Dental' }),
+        channel: 'sales_assisted',
+        created_by_user_id: 'rep-user-1',
+        created_by_email: 'rep@alphasourceai.com',
+        ghl_contact_id: 'contact-1',
+        ghl_opportunity_id: 'opportunity-1',
+        promotion_code: 'SAVE10',
+        promotion_label: '10% off',
+        promotion_discount_cents: 2990,
+        initial_payment_cents: 26910,
+      },
+      { ...intent({ id: 'intent-retail', company: 'Retail Dental' }), channel: 'retail' },
+    ],
+  });
+
+  const payload = await buildAdminPublicPurchasesPayload({
+    db,
+    now: NOW,
+    query: { days: '7', channel: 'sales_assisted', representative: 'REP@ALPHASOURCEAI.COM' },
+  });
+
+  assert.equal(payload.purchases.items.length, 1);
+  const item = payload.purchases.items[0];
+  assert.equal(item.purchase_intent_id, 'intent-sales');
+  assert.deepEqual(item.source, {
+    path: '/alphascreen/pricing',
+    channel: 'sales_assisted',
+    representative_user_id: 'rep-user-1',
+    representative_email: 'rep@alphasourceai.com',
+    ghl_contact_id: 'contact-1',
+    ghl_opportunity_id: 'opportunity-1',
+  });
+  assert.equal(item.sales_pricing.promotion_discount_cents, 2990);
+  assert.equal(item.sales_pricing.initial_payment_cents, 26910);
+  assert.equal(payload.filters.channel, 'sales_assisted');
+  assert.equal(payload.filters.representative, 'rep@alphasourceai.com');
 });
 
 test('support summary is returned with safe fields only', async () => {
