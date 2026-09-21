@@ -1,1 +1,4 @@
 templates/pdf/alphascreen-public-purchase-support-playbook.pdf binary
+# Hash-verified at runtime: the bytes on disk must match the bytes committed.
+src/content/support-voice-knowledge.json -text
+src/content/support-voice-knowledge.sha256 -text

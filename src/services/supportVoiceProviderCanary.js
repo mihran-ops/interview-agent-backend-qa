@@ -1,4 +1,5 @@
 const WebSocket = require('ws');
+const { handoffEnabled } = require('./supportHandoff');
 const {
   DEFAULT_VOICE,
   UPSTREAM_MAX_PAYLOAD,
@@ -142,7 +143,7 @@ function createSupportVoiceProviderCanary(options = {}) {
       }
       socket.on('open', () => {
         try {
-          socket.send(JSON.stringify(buildAuthoritativeSessionUpdate({ prompt: CANARY_PROMPT, voice: DEFAULT_VOICE })), (error) => {
+          socket.send(JSON.stringify(buildAuthoritativeSessionUpdate({ prompt: CANARY_PROMPT, voice: DEFAULT_VOICE, handoff: handoffEnabled(env) })), (error) => {
             if (error) settle(false, 'socket_error');
           });
         } catch {
@@ -154,7 +155,7 @@ function createSupportVoiceProviderCanary(options = {}) {
         if (!event) return settle(false, 'invalid_frame');
         if (validatePreAttestationProviderEvent(event)) return;
         if (event.type !== 'session.updated') return settle(false, 'unexpected_event');
-        const attestation = attestSessionUpdated(event, { prompt: CANARY_PROMPT, voice: DEFAULT_VOICE });
+        const attestation = attestSessionUpdated(event, { prompt: CANARY_PROMPT, voice: DEFAULT_VOICE, handoff: handoffEnabled(env) });
         return attestation.ok
           ? settle(true)
           : settle(false, 'provider_attestation', attestation.field);

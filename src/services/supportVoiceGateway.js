@@ -7,6 +7,7 @@ const { hasAnyActiveClientMembership } = require('./supportVoiceMembership');
 const { createSupportVoiceSessionStore } = require('./supportVoiceSessionStore');
 const { buildSupportVoicePrompt, getSupportVoiceKnowledgeReadiness, SUPPORT_GREETING } = require('./supportVoiceKnowledge');
 const { createSupportVoiceProviderCanary } = require('./supportVoiceProviderCanary');
+const { createSupportHandoff } = require('./supportHandoff');
 const {
   BROWSER_MAX_PAYLOAD,
   DEFAULT_VOICE,
@@ -216,6 +217,7 @@ function createSupportVoiceGateway(options = {}) {
   const requireAuth = options.requireAuth;
   if (typeof requireAuth !== 'function') throw new Error('SUPPORT_VOICE_REQUIRE_AUTH_REQUIRED');
   const rateLimit = options.rateLimit || require('./rateLimit').checkAndIncrementRateLimit;
+  const supportHandoff = options.supportHandoff || createSupportHandoff({ env, rateLimit });
   const WebSocketClient = options.WebSocketClient || WebSocket;
   const captureProviderAlert = typeof options.captureProviderAlert === 'function' ? options.captureProviderAlert : () => {};
   const sessionStore = options.sessionStore || createSupportVoiceSessionStore({ serviceDb });
@@ -273,6 +275,7 @@ function createSupportVoiceGateway(options = {}) {
       version: config.knowledge.version || null,
       sha256: config.knowledge.sha256 || null,
       xff_mode: ['strict', 'best_effort'].includes(env.SUPPORT_VOICE_XFF_MODE) ? env.SUPPORT_VOICE_XFF_MODE : null,
+      email_handoff_enabled: supportHandoff.enabled(),
       session_store_ok: config.sessionStoreHealthy,
       ...providerCanary.snapshot(),
     };
@@ -577,7 +580,8 @@ function createSupportVoiceGateway(options = {}) {
   }
 
   function connectUpstream(entry) {
-    const built = buildSupportVoicePrompt();
+    const handoff = supportHandoff.enabled();
+    const built = buildSupportVoicePrompt({ handoff });
     entry.phase = 'upstream_connecting';
     const upstream = new WebSocketClient(UPSTREAM_URL, {
       headers: { Authorization: `Bearer ${env.XAI_API_KEY}` },
@@ -586,6 +590,29 @@ function createSupportVoiceGateway(options = {}) {
       handshakeTimeout: 5000,
     });
     entry.upstream = upstream;
+    function deliverSupportResult() {
+      if (entry.phase !== 'ready' || entry.responseActive || !entry.supportResult || upstream.readyState !== WebSocket.OPEN) return;
+      const playbackRemainingMs = Math.max(0, entry.playbackEndsAt - Date.now());
+      if (playbackRemainingMs > 0) {
+        if (!entry.supportResumeTimer) {
+          const timer = setTimeout(() => {
+            entry.timers.delete(timer);
+            entry.supportResumeTimer = null;
+            deliverSupportResult();
+          }, playbackRemainingMs);
+          timer.unref?.();
+          entry.supportResumeTimer = timer;
+          entry.timers.add(timer);
+        }
+        return;
+      }
+      const { callId, result } = entry.supportResult;
+      entry.supportResult = null;
+      try {
+        upstream.send(JSON.stringify({ type: 'conversation.item.create', item: { type: 'function_call_output', call_id: callId, output: JSON.stringify(result) } }));
+        upstream.send(JSON.stringify({ type: 'response.create' }));
+      } catch { finalize(entry, 'support_voice_unavailable'); }
+    }
     const setup = setTimeout(() => finalize(entry, 'support_voice_unavailable'), 5000);
     setup.unref?.();
     entry.timers.add(setup);
@@ -594,7 +621,7 @@ function createSupportVoiceGateway(options = {}) {
       clearTimeout(setup);
       entry.timers.delete(setup);
       entry.phase = 'session_update_sent';
-      upstream.send(JSON.stringify(buildAuthoritativeSessionUpdate({ prompt: built.prompt, voice: DEFAULT_VOICE })), (error) => {
+      upstream.send(JSON.stringify(buildAuthoritativeSessionUpdate({ prompt: built.prompt, voice: DEFAULT_VOICE, handoff })), (error) => {
         if (error) finalize(entry, 'support_voice_unavailable');
       });
       const ack = setTimeout(() => finalize(entry, 'support_voice_unavailable'), 5000);
@@ -613,7 +640,7 @@ function createSupportVoiceGateway(options = {}) {
         return finalize(entry, 'support_voice_unavailable');
       }
       if (event.type === 'session.updated') {
-        const attestation = attestSessionUpdated(event, { prompt: built.prompt, voice: DEFAULT_VOICE });
+        const attestation = attestSessionUpdated(event, { prompt: built.prompt, voice: DEFAULT_VOICE, handoff });
         if (entry.phase !== 'session_update_sent' || !attestation.ok) {
           entry.providerFailureCategory = entry.phase === 'session_update_sent' ? 'provider_attestation' : 'unexpected_phase';
           entry.providerFailureField = attestation.ok ? null : attestation.field;
@@ -643,8 +670,22 @@ function createSupportVoiceGateway(options = {}) {
         return;
       }
       if (entry.phase !== 'ready') return finalize(entry, 'support_voice_unavailable');
-      const classified = classifyProviderEvent(event);
+      const classified = classifyProviderEvent(event, { handoff });
       if (classified.action === 'finalize') return finalize(entry, 'support_voice_unavailable');
+      if (classified.action === 'support_handoff') {
+        if (entry.supportAttempted) return finalize(entry, 'support_voice_unavailable');
+        entry.supportAttempted = true;
+        void supportHandoff.send(classified.arguments, { channel: 'dashboard', requestKey: entry.sessionId }).then((result) => {
+          if (entry.phase !== 'ready') return;
+          entry.supportResult = { callId: classified.callId, result };
+          deliverSupportResult();
+        }).catch(() => {
+          if (entry.phase !== 'ready') return;
+          entry.supportResult = { callId: classified.callId, result: { status: 'unknown' } };
+          deliverSupportResult();
+        });
+        return;
+      }
       if (event.type === 'response.created') {
         if (entry.responseActive) return finalize(entry, 'support_voice_unavailable');
         clearEntryTimer(entry, 'idleTimer');
@@ -678,6 +719,7 @@ function createSupportVoiceGateway(options = {}) {
         entry.suppressedSpeechEvent = false;
         const audiblePlaybackRemainingMs = Math.max(0, entry.playbackEndsAt - Date.now());
         resetIdle(entry, audiblePlaybackRemainingMs + idleMs);
+        deliverSupportResult();
       }
       if (event.type === 'input_audio_buffer.speech_started') resetIdle(entry);
       if (classified.action === 'forward' && !sendBrowser(entry, classified.message)) return finalize(entry, 'support_voice_unavailable');

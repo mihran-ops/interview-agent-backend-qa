@@ -49,6 +49,7 @@ class FakeUpstream extends EventEmitter {
             input_audio_format: 'not specified',
             input_audio_transcription: null,
             instructions: prompt,
+            ...(event.session.tools ? { tools: event.session.tools.map(({ type, ...fn }) => ({ type, function: fn })) } : {}),
             keep_context: false,
             max_response_output_tokens: 'inf',
             modalities: ['audio'],
@@ -124,6 +125,7 @@ async function setup(options = {}) {
       next();
     },
     rateLimit: async () => ({ allowed: true, count: 1, remaining: 1, retryAfterSeconds: 0 }),
+    supportHandoff: options.supportHandoff,
     heartbeatIntervalMs: options.heartbeatIntervalMs,
     heartbeatGraceMs: options.heartbeatGraceMs,
     idleMs: options.idleMs,
@@ -173,6 +175,36 @@ async function waitFor(predicate, timeoutMs = 1000) {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
 }
+
+test('support handoff executes once and resumes voice only after the response finishes', async () => {
+  const sends = [];
+  let resolveSend;
+  const h = await setup({ supportHandoff: {
+    enabled: () => true,
+    send: (input, context) => { sends.push({ input, context }); return new Promise(resolve => { resolveSend = resolve; }); },
+  } });
+  try {
+    await waitFor(() => h.messages.some(message => message.type === 'ready'));
+    const upstream = FakeUpstream.instances[0];
+    upstream.emitProvider({ type: 'response.created' });
+    const event = { type: 'response.function_call_arguments.done', name: 'send_support_message', call_id: 'support-call-1', arguments: JSON.stringify({ summary: 'Need setup help', contact_name: 'Alex Rivera', contact_email: 'client@example.com', confirmed: true }) };
+    upstream.emitProvider(event);
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0].context.channel, 'dashboard');
+    resolveSend({ status: 'accepted', reference: 'test-ref' });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(upstream.sent.some(item => item.item?.type === 'function_call_output'), false);
+    upstream.emitProvider({ type: 'response.output_audio.delta', delta: Buffer.alloc(4800).toString('base64') });
+    upstream.emitProvider({ type: 'response.done' });
+    assert.equal(upstream.sent.some(item => item.item?.type === 'function_call_output'), false);
+    await waitFor(() => upstream.sent.some(item => item.item?.type === 'function_call_output'));
+    assert.equal(upstream.sent.at(-1).type, 'response.create');
+    assert.deepEqual(JSON.parse(upstream.sent.at(-2).item.output), { status: 'accepted', reference: 'test-ref' });
+    upstream.emitProvider(event);
+    assert.equal(sends.length, 1);
+    assert.ok(!h.logs.some(log => JSON.stringify(log).includes('client@example.com')));
+  } finally { await h.close(); }
+});
 
 test('authenticated browser WS receives ready only after exact provider attestation and greeting send', async () => {
   const h = await setup();

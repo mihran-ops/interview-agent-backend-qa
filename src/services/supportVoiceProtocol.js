@@ -5,6 +5,8 @@ const BROWSER_MAX_PAYLOAD = 48 * 1024;
 const UPSTREAM_MAX_PAYLOAD = 512 * 1024;
 const MAX_AUDIO_BYTES = 32 * 1024;
 const MAX_OUTBOUND_AUDIO_BYTES = 256 * 1024;
+const { isDeepStrictEqual } = require('node:util');
+const { SUPPORT_TOOL } = require('./supportHandoff');
 
 function own(value, key) {
   return Object.prototype.hasOwnProperty.call(value, key);
@@ -21,12 +23,13 @@ function boundedProviderIdentifier(value, { nullable = false } = {}) {
     !/[\u0000-\u001f\u007f]/.test(value);
 }
 
-function buildAuthoritativeSessionUpdate({ prompt, voice = DEFAULT_VOICE }) {
+function buildAuthoritativeSessionUpdate({ prompt, voice = DEFAULT_VOICE, handoff = false }) {
   return {
     type: 'session.update',
     session: {
       voice,
       instructions: prompt,
+      ...(handoff ? { tools: [SUPPORT_TOOL] } : {}),
       modalities: ['audio'],
       input_audio_transcription: null,
       turn_detection: {
@@ -85,7 +88,7 @@ function sessionAttestationFailure(failureCategory, field) {
   return { ok: false, failure_category: failureCategory, field };
 }
 
-function attestSessionUpdated(event, { prompt, voice = DEFAULT_VOICE }) {
+function attestSessionUpdated(event, { prompt, voice = DEFAULT_VOICE, handoff = false }) {
   if (!event || typeof event !== 'object' || Array.isArray(event) || event.type !== 'session.updated' || !own(event, 'session')) {
     return sessionAttestationFailure('invalid_envelope', 'event');
   }
@@ -99,13 +102,14 @@ function attestSessionUpdated(event, { prompt, voice = DEFAULT_VOICE }) {
     'input_audio_transcription', 'instructions', 'keep_context', 'max_response_output_tokens',
     'modalities', 'model', 'output_audio_format', 'temperature', 'tool_choice', 'turn_detection',
   ];
-  const optional = ['resumption'];
+  const optional = ['resumption', ...(handoff ? ['tools'] : [])];
   if (!session || typeof session !== 'object' || Array.isArray(session)) return sessionAttestationFailure('invalid_session', 'session');
   const keys = Object.keys(session);
   if (keys.some((key) => !required.includes(key) && !optional.includes(key))) return sessionAttestationFailure('unexpected_field', 'session');
   const missingRequiredKey = required.find((key) => !own(session, key));
   if (missingRequiredKey) return sessionAttestationFailure('missing_field', missingRequiredKey);
-  if (own(session, 'tools')) return sessionAttestationFailure('capability_drift', 'tools');
+  const expectedTools = [{ type: 'function', function: { name: SUPPORT_TOOL.name, description: SUPPORT_TOOL.description, parameters: SUPPORT_TOOL.parameters } }];
+  if (handoff ? !isDeepStrictEqual(session.tools, expectedTools) : own(session, 'tools')) return sessionAttestationFailure('capability_drift', 'tools');
   if (session.instructions !== prompt) return sessionAttestationFailure('authority_drift', 'instructions');
   if (session.model !== MODEL) return sessionAttestationFailure('model_drift', 'model');
   if (!Array.isArray(session.modalities) || session.modalities.length !== 1 || session.modalities[0] !== 'audio') return sessionAttestationFailure('capability_drift', 'modalities');
@@ -162,9 +166,16 @@ function providerCapabilityEvent(type) {
   return ['function_call', 'tool', 'mcp', 'web_search', 'x_search', 'file_search'].some((marker) => joined.includes(marker));
 }
 
-function classifyProviderEvent(event) {
+function classifyProviderEvent(event, { handoff = false } = {}) {
   if (!event || typeof event !== 'object' || Array.isArray(event) || typeof event.type !== 'string' || event.type.length > 160) return { action: 'finalize' };
   const type = event.type;
+  if (handoff && type === 'response.function_call_arguments.delta') return { action: 'drop' };
+  if (handoff && type === 'response.function_call_arguments.done') {
+    if (event.name !== SUPPORT_TOOL.name || !boundedProviderIdentifier(event.call_id) ||
+        typeof event.arguments !== 'string' || Buffer.byteLength(event.arguments) > 4096) return { action: 'finalize' };
+    try { return { action: 'support_handoff', callId: event.call_id, arguments: JSON.parse(event.arguments) }; }
+    catch { return { action: 'finalize' }; }
+  }
   if (providerCapabilityEvent(type) || type === 'error') return { action: 'finalize' };
   if (type === 'response.created') return { action: 'forward', message: { type: 'speaking', active: true } };
   if (type === 'response.done') return { action: 'forward', message: { type: 'speaking', active: false } };

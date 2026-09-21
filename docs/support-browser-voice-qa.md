@@ -1,5 +1,11 @@
 # QA dashboard browser voice support
 
+## September 11 email escalation update
+
+The optional, caller-approved support email action is documented in [support-agent-email-escalation.md](./support-agent-email-escalation.md). When `SUPPORT_HANDOFF_ENABLED` is on and configured, it adds exactly one attested tool; the earlier no-tool behavior below remains the disabled-mode baseline. The browser still cannot inspect accounts or transfer calls, and it does not store recordings or transcripts.
+
+# Historical QA dashboard browser voice baseline
+
 The QA dashboard voice surface is a separate, informational-only support channel. It does not replace or modify the public alphaSource Support phone agent.
 
 ## Knowledge contract

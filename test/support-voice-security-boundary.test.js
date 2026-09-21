@@ -14,7 +14,7 @@ const voiceFiles = [
   'src/services/supportVoiceSessionStore.js',
 ].map((relative) => ({ relative, source: fs.readFileSync(path.join(root, relative), 'utf8') }));
 
-test('voice call graph has no tenant, candidate, billing, transcript, account-action, tool, or selected-scope path', () => {
+test('voice call graph has no tenant, candidate, billing, transcript, account-action, or selected-scope path', () => {
   const combined = voiceFiles.map((file) => file.source).join('\n');
   for (const forbidden of [
     /withClientScope/,
@@ -22,11 +22,21 @@ test('voice call graph has no tenant, candidate, billing, transcript, account-ac
     /selected[_-]?client/i,
     /routes\/(?:candidate|interview|report|billing|role)/i,
     /\.from\(['"](?:clients|roles|candidates|interviews|reports|otp_tokens|billing_events|conversations)['"]\)/i,
-    /function_call_output|tools\s*:/i,
   ]) assert.doesNotMatch(combined, forbidden);
   assert.match(combined, /\.from\('client_members'\)/);
   assert.match(combined, /rpc\('service_reserve_support_voice_session'/);
   assert.doesNotMatch(combined, /\.from\('support_voice_sessions'\)/);
+});
+
+test('email-enabled prompt retains account isolation and requires caller approval', () => {
+  const built = buildSupportVoicePrompt({ handoff: true });
+  assert.ok(built.promptBytes <= MAX_PROMPT_BYTES);
+  assert.match(built.prompt, /Only after an explicit yes call send_support_message/);
+  assert.match(built.prompt, /cannot access or inspect the caller's account/);
+  assert.match(built.prompt, /Browser voice cannot transfer/);
+  const update = buildAuthoritativeSessionUpdate({ prompt: built.prompt, handoff: true });
+  assert.deepEqual(update.session.tools.map(tool => tool.name), ['send_support_message']);
+  assert.equal(update.session.input_audio_transcription, null);
 });
 
 test('authoritative support prompt is bounded, informational-only, and produces an audio-only no-tool session', () => {

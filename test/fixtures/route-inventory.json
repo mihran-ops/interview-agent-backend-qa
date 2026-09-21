@@ -184,6 +184,7 @@
   "POST /api/roles",
   "POST /api/roles/:id/job-description-replacement",
   "POST /api/roles/:id/rubric-request-changes",
+  "POST /api/support/phone-handoff",
   "POST /api/support/voice/sessions",
   "POST /api/text-interview/answers",
   "POST /api/text-interview/resume",
