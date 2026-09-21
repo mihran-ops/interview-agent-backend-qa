@@ -73,6 +73,8 @@ const dashboardRouter = require('./src/routes/client/dashboardRouter')
 const rolesRouter = require('./src/routes/client/roles')
 const automationRouter = require('./src/routes/automation/index')
 const { requireAuth, withClientScope } = require('./src/middleware/auth')
+const { createRequireSalesRep } = require('./src/middleware/salesAuth')
+const { createSalesRouter } = require('./src/routes/sales/index')
 const { createSupportVoiceGateway } = require('./src/services/supportVoiceGateway')
 const { isInterviewRecoveryCoreEnabled, isInterviewRecoveryCoreEmailEnabled } = require('./src/services/interviewAttemptService')
 const {
@@ -149,7 +151,8 @@ app.use(cors({
     'x-client-info',
     'Prefer',
     'Range',
-    'Accept'
+    'Accept',
+    'Idempotency-Key'
   ],
   exposedHeaders: ['Content-Range', 'Range-Unit']
 }))
@@ -206,7 +209,8 @@ app.use((req, res, next) => {
       pathName.startsWith('/roles') ||
       pathName.startsWith('/reports') ||
       pathName.startsWith('/files') ||
-      pathName.startsWith('/membership-agreements')
+      pathName.startsWith('/membership-agreements') ||
+      pathName.startsWith('/sales')
     ) {
       res.setHeader('Cache-Control', 'private, no-store');
     }
@@ -255,6 +259,7 @@ app.use('/api/feedback', require('./src/routes/client/feedback'))
 app.use('/api/alphascreen', require('./src/routes/public/alphascreen/index'))
 app.use('/api/public-analytics', require('./src/routes/public/analytics'))
 app.use('/api/public-leads', require('./src/routes/public/leads'))
+app.use('/sales', requireAuth, createRequireSalesRep(), createSalesRouter())
 
 // ---------- Dashboard: scoped rows ----------
 // Registered after the shared router mounts above, which is where these paths
