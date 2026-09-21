@@ -56,6 +56,12 @@ function asWholeNumberOrNull(value, { allowZero = true } = {}) {
   return n
 }
 
+// Distinguishes "the caller left this out" from "the caller sent something bad",
+// so an optional field can still be validated when it is supplied.
+function isSuppliedValue(value) {
+  return value !== undefined && value !== null && String(value).trim() !== ''
+}
+
 function wantsEmbeddedCheckout(value) {
   if (value === true) return true
   const raw = String(value || '').trim().toLowerCase()
@@ -295,6 +301,15 @@ async function createSubscriptionCheckoutSession({
     ) {
       throw makeError(400, 'invalid_enterprise_fees', 'Invalid enterprise pricing fields.')
     }
+    // Optional, for Enterprise clients on the usage model. Omitting it is valid;
+    // supplying something unparseable is not, so presence is checked separately.
+    const usageFeeSupplied = isSuppliedValue(enterpriseFees?.usage_interview_fee_cents)
+    const usageInterviewFeeCents = usageFeeSupplied
+      ? asWholeNumberOrNull(enterpriseFees.usage_interview_fee_cents, { allowZero: true })
+      : null
+    if (usageFeeSupplied && usageInterviewFeeCents === null) {
+      throw makeError(400, 'invalid_enterprise_fees', 'Invalid enterprise pricing fields.')
+    }
     const platformCents = Math.round(platformFee * 100)
     if (!Number.isFinite(platformCents) || platformCents <= 0) {
       throw makeError(400, 'invalid_enterprise_fees', 'Invalid enterprise pricing fields.')
@@ -303,7 +318,10 @@ async function createSubscriptionCheckoutSession({
       platform_fee: String(Math.round(platformFee * 100) / 100),
       per_role_fee: String(Math.round(perRoleFee * 100) / 100),
       included_interviews_per_role: String(includedInterviewsPerRole),
-      additional_interview_fee: String(Math.round(additionalInterviewFee * 100) / 100)
+      additional_interview_fee: String(Math.round(additionalInterviewFee * 100) / 100),
+      ...(usageInterviewFeeCents === null
+        ? {}
+        : { usage_interview_fee_cents: String(usageInterviewFeeCents) })
     }
     const enterprisePrice = await stripe.prices.create({
       currency: 'usd',

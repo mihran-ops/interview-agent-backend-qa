@@ -133,7 +133,9 @@ router.post('/checkout-session', publicAgreementTokenRateLimit, async (req, res)
           platform_fee: agreementInput.platform_fee,
           per_role_fee: agreementInput.per_role_fee,
           included_interviews_per_role: agreementInput.included_interviews_per_role,
-          additional_interview_fee: agreementInput.additional_interview_fee
+          additional_interview_fee: agreementInput.additional_interview_fee,
+          // Optional, so it is deliberately left out of the required-field check below.
+          usage_interview_fee_cents: agreementInput.usage_interview_fee_cents
         }
       : null;
 

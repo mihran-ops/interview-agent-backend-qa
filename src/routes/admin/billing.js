@@ -10,6 +10,7 @@ const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { rejectChildClientForAdminBilling } = require('../../services/admin/adminHelpers');
+const { BILLING_MODELS } = require('../../services/billingModel');
 
 const router = express.Router();
 
@@ -195,7 +196,8 @@ router.post('/clients/:id/subscription-checkout', requireAuth, requireAdmin, asy
           platform_fee: req.body?.platform_fee,
           per_role_fee: req.body?.per_role_fee,
           included_interviews_per_role: req.body?.included_interviews_per_role,
-          additional_interview_fee: req.body?.additional_interview_fee
+          additional_interview_fee: req.body?.additional_interview_fee,
+          usage_interview_fee_cents: req.body?.usage_interview_fee_cents
         }
       : null
 
@@ -441,5 +443,122 @@ router.post('/clients/:id/subscription-invoice', requireAuth, requireAdmin, asyn
   }
 })
 
+// Plan settings a client is billed under. Every field is optional; only the ones
+// supplied are written, so a caller can move a client between billing models
+// without restating its pricing. Money fields are in dollars, matching the rest
+// of client_plan_settings; usage_interview_fee_cents is the one exception and is
+// named for its unit.
+const PLAN_SETTINGS_FIELD_VALIDATORS = {
+  billing_model: (value) => (BILLING_MODELS.includes(String(value).trim().toLowerCase())
+    ? String(value).trim().toLowerCase()
+    : undefined),
+  per_role_fee: (value) => asMoney(value),
+  included_interviews_per_role: (value) => asWholeNumber(value),
+  additional_interview_fee: (value) => asMoney(value),
+  usage_interview_fee_cents: (value) => asWholeNumber(value),
+  rollover_days: (value) => {
+    const parsed = asWholeNumber(value)
+    return parsed != null && parsed > 0 ? parsed : undefined
+  }
+}
+
+function isSupplied(value) {
+  return value !== undefined && value !== null && String(value).trim() !== ''
+}
+
+function asMoney(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined
+  return Math.round(parsed * 100) / 100
+}
+
+function asWholeNumber(value) {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed) || parsed < 0) return undefined
+  return parsed
+}
+
+router.patch('/clients/:id/plan-settings', requireAuth, requireAdmin, async (req, res) => {
+  const request_id = req.request_id || null
+  const clientId = String(req.params?.id || '').trim()
+  if (!clientId) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      code: 'CLIENT_ID_REQUIRED',
+      detail: 'Client id is required.',
+      hint: null,
+      request_id
+    })
+  }
+
+  const patch = {}
+  const invalidFields = []
+  for (const [field, validate] of Object.entries(PLAN_SETTINGS_FIELD_VALIDATORS)) {
+    const raw = req.body?.[field]
+    if (!isSupplied(raw)) continue
+    const parsed = validate(raw)
+    if (parsed === undefined) invalidFields.push(field)
+    else patch[field] = parsed
+  }
+
+  if (invalidFields.length) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      code: 'INVALID_PLAN_SETTINGS',
+      detail: `Invalid plan settings values: ${invalidFields.join(', ')}.`,
+      hint: null,
+      request_id
+    })
+  }
+  if (!Object.keys(patch).length) {
+    return res.status(400).json({
+      error: 'invalid_request',
+      code: 'NO_PLAN_SETTINGS_SUPPLIED',
+      detail: 'At least one plan setting must be supplied.',
+      hint: null,
+      request_id
+    })
+  }
+
+  const parentGuard = await rejectChildClientForAdminBilling(req, res, { route: 'admin_clients_plan_settings' })
+  if (!parentGuard) return
+
+  const { data: updated, error: updateError } = await supabaseAdmin
+    .from('client_plan_settings')
+    .update(patch)
+    .eq('client_id', clientId)
+    .select('client_id,plan_tier,billing_model,billing_interval,platform_fee,per_role_fee,included_interviews_per_role,additional_interview_fee,usage_interview_fee_cents,rollover_days')
+    .maybeSingle()
+
+  if (updateError) {
+    return res.status(500).json({
+      error: 'internal_error',
+      code: 'PLAN_SETTINGS_UPDATE_FAILED',
+      detail: updateError.message || 'Failed to update plan settings.',
+      hint: updateError.hint || null,
+      request_id
+    })
+  }
+  if (!updated) {
+    return res.status(404).json({
+      error: 'not_found',
+      code: 'PLAN_SETTINGS_NOT_FOUND',
+      detail: 'This client has no plan settings row to update.',
+      hint: null,
+      request_id
+    })
+  }
+
+  // There is no generic admin audit table in this codebase, so the change is
+  // recorded the way the other admin routes record theirs.
+  console.log('admin_plan_settings_updated', {
+    client_id: clientId,
+    actor_user_id: req.user?.id || null,
+    changed_fields: Object.keys(patch),
+    request_id
+  })
+
+  return res.json({ ok: true, plan_settings: updated })
+})
 
 module.exports = router;

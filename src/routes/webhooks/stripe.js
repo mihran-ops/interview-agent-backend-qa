@@ -8,6 +8,7 @@ const { buildAlphaScreenPlanSettingsPayload } = require('../../services/alphaScr
 const { activatePublicPurchaseAgreementCheckout } = require('../../services/publicPurchaseActivation');
 const { finalizePendingRolePurchase } = require('../../services/rolePurchaseFinalizer');
 const { requirePlanCapacity } = require('../../services/planCapacity');
+const { defaultBillingModelForPlanTier } = require('../../services/billingModel');
 const router = express.Router();
 
 const SETTLED_PAYMENT_STATUSES = new Set(['paid', 'no_payment_required']);
@@ -185,6 +186,13 @@ function buildClientPlanSettingsPayloadFromSubscription(subscription, clientId, 
     const perRoleFee = parseMoneyValue(getSubscriptionMetadataValue(metadataSources, 'per_role_fee', options.fallbackPerRoleFee));
     const includedInterviewsPerRole = parseWholeNumber(getSubscriptionMetadataValue(metadataSources, 'included_interviews_per_role', options.fallbackIncludedInterviewsPerRole));
     const additionalInterviewFee = parseMoneyValue(getSubscriptionMetadataValue(metadataSources, 'additional_interview_fee', options.fallbackAdditionalInterviewFee));
+    // Optional: Enterprise clients on the usage model price extra interviews with
+    // it. The raw value is checked for presence first, because parseWholeNumber
+    // reads an absent value as zero, which would silently reprice the client.
+    const usageInterviewFeeCentsRaw = getSubscriptionMetadataValue(metadataSources, 'usage_interview_fee_cents', options.fallbackUsageInterviewFeeCents ?? null);
+    const usageInterviewFeeCents = usageInterviewFeeCentsRaw == null
+      ? null
+      : parseWholeNumber(usageInterviewFeeCentsRaw);
 
     if (
       platformFee === null ||
@@ -203,7 +211,8 @@ function buildClientPlanSettingsPayloadFromSubscription(subscription, clientId, 
       per_role_fee: perRoleFee,
       included_interviews_per_role: includedInterviewsPerRole,
       additional_interview_fee: additionalInterviewFee,
-      max_interview_minutes: requirePlanCapacity('enterprise').max_interview_minutes
+      max_interview_minutes: requirePlanCapacity('enterprise').max_interview_minutes,
+      ...(usageInterviewFeeCents === null ? {} : { usage_interview_fee_cents: usageInterviewFeeCents })
     };
   }
 
@@ -246,9 +255,14 @@ async function upsertClientPlanSettingsFromSubscription(subscription, clientId, 
     client_id: clientId,
     subscription_id: pickId(subscription?.id) || null
   });
+  // The tier decides the billing model for a newly provisioned client. The column
+  // is set on every upsert so a tier change moves the client onto the right model.
   const { error } = await supabaseAdmin
     .from('client_plan_settings')
-    .upsert(payload, { onConflict: 'client_id' });
+    .upsert(
+      { ...payload, billing_model: defaultBillingModelForPlanTier(payload.plan_tier) },
+      { onConflict: 'client_id' }
+    );
   if (error) throw new Error(error.message || 'Client plan settings upsert failed');
   return true;
 }

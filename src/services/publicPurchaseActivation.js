@@ -7,6 +7,7 @@ const {
   normalizeAlphaScreenPlanKey,
   normalizeBillingInterval
 } = require('./alphaScreenPackages');
+const { defaultBillingModelForPlanTier } = require('./billingModel');
 const { ensureUserAndSendRecovery, redactEmail } = require('./recoveryHelper');
 const { sendMemberRecoveryEmail, sendAlphaScreenWelcomeEmail } = require('../clients/sendgrid');
 const { buildClientPwResetUrl } = require('../config/urlConfig');
@@ -883,9 +884,13 @@ async function activatePublicPurchaseAgreementCheckout(options = {}) {
     planKey,
     billingInterval
   });
+  // The tier decides the billing model for a newly activated client.
+  const planSettingsUpsert = planSettingsPayload
+    ? { ...planSettingsPayload, billing_model: defaultBillingModelForPlanTier(planSettingsPayload.plan_tier) }
+    : planSettingsPayload;
   const { error: settingsErr } = await db
     .from('client_plan_settings')
-    .upsert(planSettingsPayload, { onConflict: 'client_id' });
+    .upsert(planSettingsUpsert, { onConflict: 'client_id' });
   if (settingsErr) throw new Error(settingsErr.message || 'Client plan settings upsert failed');
 
   const firstRoleCreditStatus = await createFirstRolePrepayCredit({
