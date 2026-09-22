@@ -8,6 +8,8 @@ const { buildClientDashboardReturnUrl } = require('../../config/urlConfig');
 const { resolveBillingOwnerForScope } = require('../../services/clientBillingScope');
 const { canViewLegalBillingForClient } = require('../../services/clientScope');
 const { supabaseAdmin } = require('../../clients/supabase');
+const { listAvailableCredits } = require('../../services/interviewCredits');
+const { computeUnbilledUsage } = require('../../services/usageBilling');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
 const {
   hasClientWriteAccess,
@@ -68,6 +70,91 @@ router.get('/clients/billing/summary', requireAuth, withClientScope, async (req,
     return res.json({ items })
   } catch (e) {
     return res.status(500).json({ error: 'server_error' })
+  }
+})
+
+// Resolves which client a billing read is for, and refuses anything the caller
+// is not a member of. Mirrors the checks the summary route above makes.
+function resolveReadableClientId(req, res) {
+  const ids = Array.isArray(req.client_memberships) ? req.client_memberships : []
+  const wanted = String(req.query?.client_id || '').trim()
+  const isGlobalAdmin = req.isGlobalAdmin === true || req.isAdmin === true
+
+  if (wanted) {
+    if (!ids.includes(wanted) && !isGlobalAdmin) {
+      res.status(403).json({ error: 'forbidden' })
+      return null
+    }
+    if (!isGlobalAdmin && !canViewLegalBillingForClient(req.clientScope, wanted)) {
+      res.status(403).json({ error: 'forbidden' })
+      return null
+    }
+    return wanted
+  }
+
+  const readable = isGlobalAdmin
+    ? ids
+    : ids.filter((clientId) => canViewLegalBillingForClient(req.clientScope, clientId))
+  if (readable.length === 0) {
+    res.status(403).json({ error: 'forbidden' })
+    return null
+  }
+  if (readable.length > 1) {
+    res.status(400).json({ error: 'client_id_required' })
+    return null
+  }
+  return readable[0]
+}
+
+// Interview credits the client can still spend. A client on any other billing
+// model simply has none, which is an empty list rather than an error.
+router.get('/clients/billing/credits', requireAuth, withClientScope, async (req, res) => {
+  try {
+    const clientId = resolveReadableClientId(req, res)
+    if (!clientId) return
+
+    const credits = await listAvailableCredits({ db: supabaseAdmin, clientId })
+    if (!credits.length) return res.json({ items: [], total_remaining: 0 })
+
+    const sourceRoleIds = [...new Set(credits.map((credit) => String(credit.source_role_id || '')).filter(Boolean))]
+    const { data: roles, error: rolesError } = await supabaseAdmin
+      .from('roles')
+      .select('id,title')
+      .in('id', sourceRoleIds)
+    if (rolesError) return res.status(500).json({ error: 'list_credits_failed', detail: rolesError.message })
+    const titleById = new Map((roles || []).map((role) => [String(role.id), role.title || null]))
+
+    const items = credits.map((credit) => ({
+      id: credit.id,
+      source_role_id: credit.source_role_id,
+      source_role_title: titleById.get(String(credit.source_role_id)) || null,
+      quantity: credit.quantity,
+      remaining: credit.remaining,
+      minted_at: credit.minted_at,
+      expires_at: credit.expires_at
+    }))
+    const totalRemaining = items.reduce((sum, item) => sum + Number(item.remaining || 0), 0)
+    return res.json({ items, total_remaining: totalRemaining })
+  } catch (e) {
+    return res.status(500).json({ error: 'list_credits_failed', detail: e?.message || 'list_credits_failed' })
+  }
+})
+
+// What a usage client has run beyond its included counts and not yet been
+// invoiced for. Read-only: nothing here talks to Stripe or writes the ledger.
+router.get('/clients/billing/usage', requireAuth, withClientScope, async (req, res) => {
+  try {
+    const clientId = resolveReadableClientId(req, res)
+    if (!clientId) return
+
+    const usage = await computeUnbilledUsage({ db: supabaseAdmin, clientId })
+    return res.json({
+      lines: usage.lines,
+      total_cents: usage.total_cents,
+      billable: usage.lines.length > 0
+    })
+  } catch (e) {
+    return res.status(500).json({ error: 'read_usage_failed', detail: e?.message || 'read_usage_failed' })
   }
 })
 

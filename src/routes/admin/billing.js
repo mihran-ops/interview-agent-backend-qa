@@ -10,8 +10,9 @@ const { supabaseAdmin } = require('../../clients/supabase');
 const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { rejectChildClientForAdminBilling } = require('../../services/admin/adminHelpers');
-const { BILLING_MODELS } = require('../../services/billingModel');
-const { createImmediateUsageInvoice } = require('../../services/usageBilling');
+const { BILLING_MODELS, resolveBillingModel } = require('../../services/billingModel');
+const { listAvailableCredits } = require('../../services/interviewCredits');
+const { computeUnbilledUsage, createImmediateUsageInvoice } = require('../../services/usageBilling');
 
 const router = express.Router();
 
@@ -560,6 +561,95 @@ router.patch('/clients/:id/plan-settings', requireAuth, requireAdmin, async (req
   })
 
   return res.json({ ok: true, plan_settings: updated })
+})
+
+// Everything an administrator needs to answer "what is this client billed, and
+// what do they owe right now" in one call. Read-only: no Stripe, no writes.
+router.get('/clients/:id/billing-summary', requireAuth, requireAdmin, async (req, res) => {
+  const request_id = req.request_id || null
+  const clientId = String(req.params?.id || '').trim()
+  if (!clientId) {
+    return res.status(400).json({
+      error: 'invalid_request', code: 'CLIENT_ID_REQUIRED',
+      detail: 'Client id is required.', hint: null, request_id
+    })
+  }
+
+  try {
+    const billing = await resolveBillingModel({ db: supabaseAdmin, clientId })
+
+    const { data: planSettings, error: planSettingsError } = await supabaseAdmin
+      .from('client_plan_settings')
+      .select('client_id,plan_tier,billing_model,billing_interval,platform_fee,per_role_fee,included_interviews_per_role,additional_interview_fee,usage_interview_fee_cents,rollover_days,updated_at')
+      .eq('client_id', clientId)
+      .maybeSingle()
+    if (planSettingsError) {
+      return res.status(500).json({
+        error: 'internal_error', code: 'PLAN_SETTINGS_LOOKUP_FAILED',
+        detail: planSettingsError.message, hint: planSettingsError.hint || null, request_id
+      })
+    }
+
+    const credits = await listAvailableCredits({ db: supabaseAdmin, clientId })
+    const usage = await computeUnbilledUsage({ db: supabaseAdmin, clientId })
+
+    // The last twelve invoices this client's usage was billed on, newest first.
+    const { data: ledgerRows, error: ledgerError } = await supabaseAdmin
+      .from('usage_billing_ledger')
+      .select('stripe_invoice_id,stripe_invoice_item_id,unit_price_cents,period_start,period_end,billed_at')
+      .eq('client_id', clientId)
+      .not('billed_at', 'is', null)
+      .order('billed_at', { ascending: false })
+    if (ledgerError) {
+      return res.status(500).json({
+        error: 'internal_error', code: 'USAGE_LEDGER_LOOKUP_FAILED',
+        detail: ledgerError.message, hint: ledgerError.hint || null, request_id
+      })
+    }
+
+    const invoicesById = new Map()
+    for (const row of (ledgerRows || [])) {
+      const invoiceId = String(row?.stripe_invoice_id || '').trim()
+      if (!invoiceId) continue
+      if (!invoicesById.has(invoiceId)) {
+        invoicesById.set(invoiceId, {
+          stripe_invoice_id: invoiceId,
+          interviews: 0,
+          amount_cents: 0,
+          period_start: row.period_start || null,
+          period_end: row.period_end || null,
+          billed_at: row.billed_at || null
+        })
+      }
+      const invoice = invoicesById.get(invoiceId)
+      invoice.interviews += 1
+      invoice.amount_cents += Number(row.unit_price_cents || 0)
+    }
+
+    return res.json({
+      ok: true,
+      client_id: clientId,
+      billing_model: billing.billing_model,
+      plan_settings: planSettings || null,
+      credits: {
+        items: credits.map((credit) => ({
+          id: credit.id,
+          source_role_id: credit.source_role_id,
+          quantity: credit.quantity,
+          remaining: credit.remaining,
+          expires_at: credit.expires_at
+        })),
+        total_remaining: credits.reduce((sum, credit) => sum + Number(credit.remaining || 0), 0)
+      },
+      unbilled_usage: { lines: usage.lines, total_cents: usage.total_cents },
+      recent_usage_invoices: [...invoicesById.values()].slice(0, 12)
+    })
+  } catch (e) {
+    return res.status(500).json({
+      error: 'internal_error', code: 'BILLING_SUMMARY_FAILED',
+      detail: e?.message || 'billing_summary_failed', hint: null, request_id
+    })
+  }
 })
 
 // Raises a usage invoice now rather than waiting for the next cycle — the
