@@ -339,10 +339,103 @@ async function applyUsageToInvoice({
   return { applied: true, items, total_cents: totalCents, lines };
 }
 
+/**
+ * Raises a usage invoice of its own, rather than waiting for the next cycle.
+ *
+ * Used for the one-time order at signup and for annual Enterprise clients, whose
+ * platform-fee invoice only appears once a year. The invoice is created first so
+ * the items and the ledger have something to attach to, then finalized.
+ */
+async function createImmediateUsageInvoice({
+  db, stripe, clientId, customerId, periodEnd, periodStart, requestId, reason, now
+} = {}) {
+  if (!db || !stripe || !clientId) return { skipped: true, reason: 'invalid_request' };
+
+  const { data: client, error: clientError } = await db
+    .from('clients')
+    .select('id,stripe_customer_id,contract_start_at')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (clientError) throw new Error(clientError.message || 'Usage invoice client lookup failed');
+  if (!client) return { skipped: true, reason: 'client_not_found' };
+
+  const stripeCustomerId = String(customerId || client.stripe_customer_id || '').trim();
+  if (!stripeCustomerId) return { skipped: true, reason: 'no_stripe_customer' };
+
+  const cutoff = toIso(periodEnd) || toIso(now) || new Date().toISOString();
+  const usage = await computeUnbilledUsage({ db, clientId, periodEnd: cutoff, now });
+  if (!usage.lines.length) return { skipped: true, reason: usage.reason || 'nothing_unbilled' };
+
+  const start = toIso(periodStart)
+    || await findLastBilledPeriodEnd({ db, clientId })
+    || toIso(client.contract_start_at);
+
+  const invoice = await stripe.invoices.create({
+    customer: stripeCustomerId,
+    collection_method: 'charge_automatically',
+    auto_advance: true,
+    metadata: {
+      client_id: clientId,
+      source: 'usage_billing',
+      reason: String(reason || 'admin_request'),
+      ...(requestId ? { request_id: String(requestId) } : {})
+    }
+  });
+  const invoiceId = String(invoice?.id || '').trim();
+  if (!invoiceId) throw new Error('Usage invoice creation returned no id');
+
+  const applied = await applyUsageToInvoice({
+    db,
+    stripe,
+    clientId,
+    customerId: stripeCustomerId,
+    invoiceId,
+    periodStart: start,
+    periodEnd: cutoff,
+    metadata: { reason: String(reason || 'admin_request') },
+    now
+  });
+
+  await stripe.invoices.finalizeInvoice(invoiceId);
+
+  return {
+    invoice_id: invoiceId,
+    total_cents: applied.total_cents,
+    lines: applied.lines || usage.lines
+  };
+}
+
+/**
+ * The day of the month an annual subscription renews on, from the only anchors
+ * this schema stores. A client anchored to the 31st runs on the last day of a
+ * shorter month rather than being skipped.
+ */
+function anniversaryDayOfMonth(client) {
+  const anchor = toIso(client?.contract_start_at) || toIso(client?.current_term_end);
+  if (!anchor) return null;
+  return new Date(anchor).getUTCDate();
+}
+
+function daysInMonth(year, monthIndex) {
+  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+}
+
+function isAnniversaryToday(client, now) {
+  const day = anniversaryDayOfMonth(client);
+  if (day == null) return false;
+  const today = now instanceof Date ? now : new Date(now || Date.now());
+  if (!Number.isFinite(today.getTime())) return false;
+  const lastDay = daysInMonth(today.getUTCFullYear(), today.getUTCMonth());
+  return today.getUTCDate() === Math.min(day, lastDay);
+}
+
 module.exports = {
   EMPTY_USAGE,
   USAGE_BILLING_MODEL,
+  anniversaryDayOfMonth,
   applyUsageToInvoice,
+  createImmediateUsageInvoice,
+  isAnniversaryToday,
   computeUnbilledUsage,
   findLastBilledPeriodEnd,
   listLedgerRowsForInvoice,

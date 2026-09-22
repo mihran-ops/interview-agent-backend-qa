@@ -11,6 +11,7 @@ const { requireAuth } = require('../../middleware/auth');
 const { requireAdmin } = require('../../middleware/requireAdmin');
 const { rejectChildClientForAdminBilling } = require('../../services/admin/adminHelpers');
 const { BILLING_MODELS } = require('../../services/billingModel');
+const { createImmediateUsageInvoice } = require('../../services/usageBilling');
 
 const router = express.Router();
 
@@ -559,6 +560,145 @@ router.patch('/clients/:id/plan-settings', requireAuth, requireAdmin, async (req
   })
 
   return res.json({ ok: true, plan_settings: updated })
+})
+
+// Raises a usage invoice now rather than waiting for the next cycle — the
+// one-time order at signup, and any ad-hoc catch-up.
+//
+// This spends money, so it takes an Idempotency-Key on the same contract as the
+// sales routes: the same key with the same body replays the first answer, the
+// same key with a different body is refused, and a key seen while the first call
+// is still running is refused rather than run twice.
+const USAGE_INVOICE_ROUTE_KEY = 'POST:/admin/clients/:id/usage-invoice'
+const IDEMPOTENCY_KEY_RE = /^[A-Za-z0-9_.:-]{8,255}$/
+
+function fingerprintOf(value) {
+  return require('node:crypto').createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex')
+}
+
+router.post('/clients/:id/usage-invoice', requireAuth, requireAdmin, async (req, res) => {
+  const request_id = req.request_id || null
+  const clientId = String(req.params?.id || '').trim()
+  const actorUserId = req.user?.id || null
+  const idempotencyKey = String(req.get('Idempotency-Key') || '').trim()
+
+  if (!clientId) {
+    return res.status(400).json({
+      error: 'invalid_request', code: 'CLIENT_ID_REQUIRED',
+      detail: 'Client id is required.', hint: null, request_id
+    })
+  }
+  if (!IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
+    return res.status(400).json({
+      error: 'invalid_request', code: 'IDEMPOTENCY_KEY_REQUIRED',
+      detail: 'A valid Idempotency-Key header is required.', hint: null, request_id
+    })
+  }
+  if (!actorUserId) {
+    return res.status(401).json({
+      error: 'unauthorized', code: 'ACTOR_REQUIRED',
+      detail: 'An authenticated administrator is required.', hint: null, request_id
+    })
+  }
+
+  const requestFingerprint = fingerprintOf({ client_id: clientId, period_end: req.body?.period_end ?? null })
+
+  const { data: seen, error: seenError } = await supabaseAdmin
+    .from('billing_idempotency_keys')
+    .select('request_fingerprint,response_status,response_body')
+    .eq('actor_user_id', actorUserId)
+    .eq('route_key', USAGE_INVOICE_ROUTE_KEY)
+    .eq('idempotency_key', idempotencyKey)
+    .maybeSingle()
+  if (seenError) {
+    return res.status(503).json({
+      error: 'unavailable', code: 'IDEMPOTENCY_LOOKUP_FAILED',
+      detail: 'The request could not be safely checked for duplicates.', hint: null, request_id
+    })
+  }
+  if (seen) {
+    if (seen.request_fingerprint !== requestFingerprint) {
+      return res.status(409).json({
+        error: 'conflict', code: 'IDEMPOTENCY_KEY_REUSED',
+        detail: 'This Idempotency-Key was already used for different request data.', hint: null, request_id
+      })
+    }
+    if (seen.response_status && seen.response_body) {
+      return res.status(seen.response_status).json(seen.response_body)
+    }
+    return res.status(409).json({
+      error: 'conflict', code: 'REQUEST_IN_PROGRESS',
+      detail: 'This request is already being processed.', hint: null, request_id
+    })
+  }
+
+  const { error: reserveError } = await supabaseAdmin
+    .from('billing_idempotency_keys')
+    .insert({
+      actor_user_id: actorUserId,
+      route_key: USAGE_INVOICE_ROUTE_KEY,
+      idempotency_key: idempotencyKey,
+      request_fingerprint: requestFingerprint
+    })
+  if (reserveError) {
+    const status = String(reserveError.code || '') === '23505' ? 409 : 503
+    return res.status(status).json({
+      error: status === 409 ? 'conflict' : 'unavailable',
+      code: status === 409 ? 'REQUEST_IN_PROGRESS' : 'IDEMPOTENCY_RESERVATION_FAILED',
+      detail: status === 409
+        ? 'This request is already being processed.'
+        : 'The request could not be safely started.',
+      hint: null,
+      request_id
+    })
+  }
+
+  const finish = async (status, body) => {
+    const { error } = await supabaseAdmin
+      .from('billing_idempotency_keys')
+      .update({ response_status: status, response_body: body })
+      .eq('actor_user_id', actorUserId)
+      .eq('route_key', USAGE_INVOICE_ROUTE_KEY)
+      .eq('idempotency_key', idempotencyKey)
+    if (error) {
+      console.error('[admin/usage-invoice] idempotency_persist_failed', {
+        client_id: clientId, code: error.code || null, request_id
+      })
+    }
+    return res.status(status).json(body)
+  }
+
+  const parentGuard = await rejectChildClientForAdminBilling(req, res, { route: 'admin_clients_usage_invoice' })
+  if (!parentGuard) return
+
+  try {
+    const stripe = require('../../clients/stripe')
+    const result = await createImmediateUsageInvoice({
+      db: supabaseAdmin,
+      stripe,
+      clientId,
+      periodEnd: req.body?.period_end || null,
+      requestId: request_id,
+      reason: 'admin_request'
+    })
+
+    console.log('admin_usage_invoice_created', {
+      client_id: clientId,
+      actor_user_id: actorUserId,
+      skipped: result.skipped === true,
+      reason: result.reason || null,
+      invoice_id: result.invoice_id || null,
+      total_cents: result.total_cents ?? 0,
+      request_id
+    })
+
+    return finish(200, { ok: true, ...result })
+  } catch (e) {
+    return finish(500, {
+      error: 'internal_error', code: 'USAGE_INVOICE_FAILED',
+      detail: e?.message || 'usage_invoice_failed', hint: null, request_id
+    })
+  }
 })
 
 module.exports = router;

@@ -10,5 +10,6 @@ const router = express.Router();
 router.use(require('./contracts'));
 router.use(require('./otpCleanup'));
 router.use(require('./recordingCleanup'));
+router.use(require('./usageBilling'));
 
 module.exports = router;
