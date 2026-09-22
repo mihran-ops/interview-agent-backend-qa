@@ -75,6 +75,7 @@ function createFakeSupabase(tables = {}, options = {}) {
     let pendingUpdate = null;
     let pendingInsert = null;
     let pendingDelete = false;
+    let ignoreDuplicates = false;
     let ordering = null;
     let limit = null;
 
@@ -100,6 +101,9 @@ function createFakeSupabase(tables = {}, options = {}) {
           if (keyOf) {
             const key = keyOf(row);
             if (key != null && rowsOf(table).some((existing) => keyOf(existing) === key)) {
+              // upsert(..., { ignoreDuplicates: true }) skips the row; a plain
+              // insert raises the way Postgres would.
+              if (ignoreDuplicates) continue;
               return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint' } };
             }
           }
@@ -155,9 +159,10 @@ function createFakeSupabase(tables = {}, options = {}) {
         calls.push({ table, op: 'update', payload });
         return query;
       },
-      upsert(payload) {
+      upsert(payload, opts = {}) {
         pendingInsert = Array.isArray(payload) ? payload : [payload];
-        calls.push({ table, op: 'upsert', payload });
+        ignoreDuplicates = opts.ignoreDuplicates === true;
+        calls.push({ table, op: 'upsert', payload, options: opts });
         return query;
       },
       delete() { pendingDelete = true; calls.push({ table, op: 'delete' }); return query; },
