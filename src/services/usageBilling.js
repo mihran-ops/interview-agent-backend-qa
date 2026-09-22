@@ -183,9 +183,169 @@ async function recordUsageLines({ db, clientId, lines, stripeInvoiceId, periodSt
   return { inserted: inserted.length, rows: inserted };
 }
 
+/** Every ledger row attached to one Stripe invoice. */
+async function listLedgerRowsForInvoice({ db, stripeInvoiceId } = {}) {
+  if (!db || !stripeInvoiceId) return [];
+  const { data, error } = await db
+    .from('usage_billing_ledger')
+    .select('id,client_id,role_id,interview_id,unit_price_cents,stripe_invoice_item_id,billed_at,period_start,period_end')
+    .eq('stripe_invoice_id', stripeInvoiceId);
+  if (error) throw new Error(error.message || 'Usage billing ledger lookup failed');
+  return data || [];
+}
+
+/** The end of the last period this client was billed for, if any. */
+async function findLastBilledPeriodEnd({ db, clientId } = {}) {
+  if (!db || !clientId) return null;
+  const { data, error } = await db
+    .from('usage_billing_ledger')
+    .select('period_end')
+    .eq('client_id', clientId)
+    .not('period_end', 'is', null)
+    .order('period_end', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'Usage billing period lookup failed');
+  return toIso(data?.period_end);
+}
+
+/** Stamps the Stripe item and the billing time onto the rows it paid for. */
+async function markUsageLinesBilled({ db, interviewIds, stripeInvoiceItemId, billedAt } = {}) {
+  if (!db || !Array.isArray(interviewIds) || !interviewIds.length) return 0;
+  const { data, error } = await db
+    .from('usage_billing_ledger')
+    .update({
+      stripe_invoice_item_id: stripeInvoiceItemId || null,
+      billed_at: toIso(billedAt) || new Date().toISOString()
+    })
+    .in('interview_id', interviewIds)
+    .is('billed_at', null)
+    .select('id');
+  if (error) throw new Error(error.message || 'Usage billing ledger stamp failed');
+  return Array.isArray(data) ? data.length : 0;
+}
+
+// Rebuilds invoice lines from ledger rows a previous attempt already reserved,
+// so a resumed run bills exactly what was reserved and nothing more.
+function linesFromLedgerRows(rows, roleTitleById) {
+  const byRole = new Map();
+  for (const row of rows) {
+    const roleId = String(row?.role_id ?? '');
+    if (!byRole.has(roleId)) {
+      byRole.set(roleId, {
+        role_id: roleId,
+        role_title: roleTitleById.get(roleId) || 'Role',
+        quantity: 0,
+        unit_price_cents: parseWholeNonNegative(row?.unit_price_cents) ?? 0,
+        amount_cents: 0,
+        interview_ids: []
+      });
+    }
+    const line = byRole.get(roleId);
+    line.quantity += 1;
+    line.interview_ids.push(String(row.interview_id));
+    line.amount_cents = line.quantity * line.unit_price_cents;
+  }
+  return [...byRole.values()];
+}
+
+function periodLabel(periodStart, periodEnd) {
+  const format = (value) => {
+    const iso = toIso(value);
+    return iso ? iso.slice(0, 10) : null;
+  };
+  const start = format(periodStart);
+  const end = format(periodEnd);
+  if (start && end) return `${start} to ${end}`;
+  return end || start || 'current period';
+}
+
+/**
+ * Adds one usage item per role to a Stripe invoice and records the ledger.
+ *
+ * Ordering is what makes a partial failure recoverable: the ledger rows are
+ * reserved first with billed_at null, then each Stripe item is created, then the
+ * rows it paid for are stamped. A retry finds the reserved rows and creates
+ * items only for the ones still unstamped, so nothing is billed twice and
+ * nothing is silently dropped.
+ *
+ * Stripe failures are rethrown so the caller can let Stripe retry.
+ */
+async function applyUsageToInvoice({
+  db, stripe, clientId, customerId, invoiceId, periodStart, periodEnd, metadata, now
+} = {}) {
+  if (!db || !stripe || !clientId || !invoiceId) {
+    return { applied: false, reason: 'invalid_request', items: 0, total_cents: 0 };
+  }
+
+  const existing = await listLedgerRowsForInvoice({ db, stripeInvoiceId: invoiceId });
+  if (existing.length && existing.every((row) => row.billed_at != null)) {
+    return { applied: false, reason: 'already_billed', items: 0, total_cents: 0 };
+  }
+
+  const { data: roleRows, error: rolesError } = await db
+    .from('roles')
+    .select('id,title')
+    .eq('client_id', clientId);
+  if (rolesError) throw new Error(rolesError.message || 'Usage billing role lookup failed');
+  const roleTitleById = new Map((roleRows || []).map((role) => [String(role.id), String(role.title || '').trim() || 'Role']));
+
+  let lines;
+  if (existing.length) {
+    // Resume: bill exactly what the failed attempt reserved.
+    lines = linesFromLedgerRows(existing.filter((row) => row.billed_at == null), roleTitleById);
+  } else {
+    const usage = await computeUnbilledUsage({ db, clientId, periodEnd, now });
+    if (!usage.lines.length) {
+      return { applied: false, reason: usage.reason || 'nothing_unbilled', items: 0, total_cents: 0 };
+    }
+    await recordUsageLines({
+      db, clientId, lines: usage.lines, stripeInvoiceId: invoiceId, periodStart, periodEnd
+    });
+    lines = usage.lines;
+  }
+
+  if (!lines.length) return { applied: false, reason: 'nothing_unbilled', items: 0, total_cents: 0 };
+
+  const label = periodLabel(periodStart, periodEnd);
+  let items = 0;
+  let totalCents = 0;
+  for (const line of lines) {
+    const item = await stripe.invoiceItems.create({
+      customer: customerId,
+      invoice: invoiceId,
+      currency: 'usd',
+      unit_amount: line.unit_price_cents,
+      quantity: line.quantity,
+      description: `Interviews — ${line.role_title} (${label})`,
+      metadata: {
+        client_id: clientId,
+        role_id: line.role_id,
+        source: 'usage_billing',
+        ...(metadata || {})
+      }
+    });
+
+    await markUsageLinesBilled({
+      db,
+      interviewIds: line.interview_ids,
+      stripeInvoiceItemId: item?.id || null,
+      billedAt: toIso(now) || new Date().toISOString()
+    });
+    items += 1;
+    totalCents += line.amount_cents;
+  }
+
+  return { applied: true, items, total_cents: totalCents, lines };
+}
+
 module.exports = {
   EMPTY_USAGE,
   USAGE_BILLING_MODEL,
+  applyUsageToInvoice,
   computeUnbilledUsage,
+  findLastBilledPeriodEnd,
+  listLedgerRowsForInvoice,
+  markUsageLinesBilled,
   recordUsageLines
 };

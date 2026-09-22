@@ -8,7 +8,8 @@ const { buildAlphaScreenPlanSettingsPayload } = require('../../services/alphaScr
 const { activatePublicPurchaseAgreementCheckout } = require('../../services/publicPurchaseActivation');
 const { finalizePendingRolePurchase } = require('../../services/rolePurchaseFinalizer');
 const { requirePlanCapacity } = require('../../services/planCapacity');
-const { defaultBillingModelForPlanTier } = require('../../services/billingModel');
+const { defaultBillingModelForPlanTier, resolveBillingModel } = require('../../services/billingModel');
+const { applyUsageToInvoice, findLastBilledPeriodEnd } = require('../../services/usageBilling');
 const router = express.Router();
 
 const SETTLED_PAYMENT_STATUSES = new Set(['paid', 'no_payment_required']);
@@ -305,6 +306,86 @@ function buildClientSubscriptionUpdatesFromStripe(subscription, options = {}) {
   return updates;
 }
 
+// Usage billing rides the platform-fee invoice: when Stripe opens the next
+// cycle's draft, the interviews a usage client ran beyond its included counts are
+// added to it as line items before it finalizes.
+//
+// Only a draft invoice can take items. A finalized one is left alone and the
+// usage stays unbilled for the next cycle, which is a delay rather than a loss.
+async function addUsageLinesToInvoice(invoice, requestId) {
+  const billingReason = String(invoice?.billing_reason || '').trim().toLowerCase();
+  if (billingReason !== 'subscription_cycle') return;
+
+  const invoiceId = pickId(invoice?.id);
+  const subscriptionId = pickId(invoice?.subscription);
+  const customerId = pickId(invoice?.customer);
+  if (!invoiceId || (!subscriptionId && !customerId)) return;
+
+  let client = null;
+  if (subscriptionId) {
+    const { data, error } = await supabaseAdmin
+      .from('clients')
+      .select('id,stripe_customer_id,contract_start_at')
+      .eq('stripe_subscription_id', subscriptionId)
+      .maybeSingle();
+    if (error) throw new Error(error.message || 'Usage billing client lookup failed');
+    client = data || null;
+  }
+  if (!client && customerId) {
+    const { data, error } = await supabaseAdmin
+      .from('clients')
+      .select('id,stripe_customer_id,contract_start_at')
+      .eq('stripe_customer_id', customerId)
+      .maybeSingle();
+    if (error) throw new Error(error.message || 'Usage billing client lookup failed');
+    client = data || null;
+  }
+  if (!client?.id) return;
+
+  const billing = await resolveBillingModel({ db: supabaseAdmin, clientId: client.id });
+  if (billing.billing_model !== 'usage') return;
+
+  const invoiceStatus = String(invoice?.status || '').trim().toLowerCase();
+  if (invoiceStatus && invoiceStatus !== 'draft') {
+    console.warn('usage_invoice_already_finalized', {
+      request_id: requestId || null,
+      client_id: client.id,
+      stripe_invoice_id: invoiceId,
+      status: invoiceStatus
+    });
+    return;
+  }
+
+  const periodEnd = toIsoFromUnixSeconds(
+    invoice?.lines?.data?.[0]?.period?.end ?? invoice?.period_end ?? null
+  );
+  const lastBilledPeriodEnd = await findLastBilledPeriodEnd({ db: supabaseAdmin, clientId: client.id });
+  const periodStart = lastBilledPeriodEnd
+    || client.contract_start_at
+    || toIsoFromUnixSeconds(invoice?.period_start ?? null);
+
+  const result = await applyUsageToInvoice({
+    db: supabaseAdmin,
+    stripe,
+    clientId: client.id,
+    customerId: customerId || client.stripe_customer_id || null,
+    invoiceId,
+    periodStart,
+    periodEnd,
+    metadata: { stripe_invoice_id: invoiceId }
+  });
+
+  console.log('usage_invoice_lines_applied', {
+    request_id: requestId || null,
+    client_id: client.id,
+    stripe_invoice_id: invoiceId,
+    applied: result.applied === true,
+    reason: result.reason || null,
+    items: result.items,
+    total_cents: result.total_cents
+  });
+}
+
 function shouldIgnoreStaleSubscriptionUpdate(client, incomingSubscriptionId, eventType) {
   const currentSubscriptionId = String(client?.stripe_subscription_id || '').trim();
   const subscriptionId = String(incomingSubscriptionId || '').trim();
@@ -534,6 +615,10 @@ router.post('/', async (req, res) => {
   try {
     if (String(event.type || '').startsWith('invoice.')) {
       await syncBillingInvoiceFromStripeEvent(eventObject, request_id);
+    }
+
+    if (event.type === 'invoice.created') {
+      await addUsageLinesToInvoice(eventObject, request_id);
     }
 
     if (
