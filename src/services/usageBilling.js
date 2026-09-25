@@ -38,6 +38,36 @@ function emptyUsage(reason) {
   return { lines: [], total_cents: 0, reason };
 }
 
+/**
+ * The clients whose usage this client pays for: itself and any child entities.
+ *
+ * Usage rolls up to whoever pays. A child entity has no Stripe customer and no
+ * subscription of its own — it cannot be invoiced — so interviews run under a
+ * child's roles are billed on the parent's invoice, tagged with the child's
+ * entity label so the line is recognisable.
+ *
+ * Interview credits deliberately do not roll up: a credit is earned by a role
+ * and stays with the client that owns it. See review/BILLING-LOG.md.
+ */
+async function loadBillingFamily({ db, clientId } = {}) {
+  const parentId = String(clientId);
+  const { data: children, error } = await db
+    .from('clients')
+    .select('id,name,entity_label')
+    .eq('parent_client_id', parentId);
+  if (error) throw new Error(error.message || 'Usage billing entity lookup failed');
+
+  const familyIds = [parentId];
+  const entityLabelById = new Map();
+  for (const child of (children || [])) {
+    const childId = String(child?.id ?? '');
+    if (!childId || childId === parentId) continue;
+    familyIds.push(childId);
+    entityLabelById.set(childId, String(child?.entity_label || child?.name || '').trim() || null);
+  }
+  return { familyIds, entityLabelById };
+}
+
 function parseWholeNonNegative(value) {
   if (value == null) return null;
   if (typeof value === 'string' && value.trim() === '') return null;
@@ -77,24 +107,28 @@ async function computeUnbilledUsage({ db, clientId, periodEnd, now } = {}) {
   const includedPerRole = parseWholeNonNegative(billing.included_interviews_per_role) ?? 0;
   const cutoff = toIso(periodEnd) || toIso(now) || new Date().toISOString();
 
+  const { familyIds, entityLabelById } = await loadBillingFamily({ db, clientId });
+
   const { data: roleRows, error: rolesError } = await db
     .from('roles')
-    .select('id,title')
-    .eq('client_id', clientId);
+    .select('id,title,client_id')
+    .in('client_id', familyIds);
   if (rolesError) throw new Error(rolesError.message || 'Usage billing role lookup failed');
   if (!roleRows || !roleRows.length) return emptyUsage('no_roles');
 
   const { data: interviewRows, error: interviewsError } = await db
     .from('interviews')
     .select(INTERVIEW_COLUMNS)
-    .eq('client_id', clientId)
+    .in('client_id', familyIds)
     .lte('updated_at', cutoff);
   if (interviewsError) throw new Error(interviewsError.message || 'Usage billing interview lookup failed');
 
+  // Ledger rows are written against the payer, so reading the whole family is
+  // belt and braces rather than strictly required.
   const { data: ledgerRows, error: ledgerError } = await db
     .from('usage_billing_ledger')
     .select('interview_id,role_id')
-    .eq('client_id', clientId);
+    .in('client_id', familyIds);
   if (ledgerError) throw new Error(ledgerError.message || 'Usage billing ledger lookup failed');
 
   const ledgeredInterviewIds = new Set();
@@ -137,6 +171,9 @@ async function computeUnbilledUsage({ db, clientId, periodEnd, now } = {}) {
     lines.push({
       role_id: roleId,
       role_title: String(role?.title || '').trim() || 'Role',
+      // Null for the payer's own roles; set for a child entity's, so the line
+      // says which office or location ran the interviews.
+      entity_label: entityLabelById.get(String(role?.client_id ?? '')) || null,
       quantity,
       unit_price_cents: unitPriceCents,
       amount_cents: amountCents,
@@ -173,10 +210,12 @@ async function recordUsageLines({ db, clientId, lines, stripeInvoiceId, periodSt
   }
   if (!rows.length) return { inserted: 0, rows: [] };
 
+  // unit_price_cents comes back because the caller rebuilds its invoice lines
+  // from these rows, and must bill them at the price they were reserved at.
   const { data, error } = await db
     .from('usage_billing_ledger')
     .upsert(rows, { onConflict: 'interview_id', ignoreDuplicates: true })
-    .select('id,interview_id,role_id');
+    .select('id,interview_id,role_id,unit_price_cents');
   if (error) throw new Error(error.message || 'Usage billing ledger write failed');
 
   const inserted = Array.isArray(data) ? data : [];
@@ -227,14 +266,16 @@ async function markUsageLinesBilled({ db, interviewIds, stripeInvoiceItemId, bil
 
 // Rebuilds invoice lines from ledger rows a previous attempt already reserved,
 // so a resumed run bills exactly what was reserved and nothing more.
-function linesFromLedgerRows(rows, roleTitleById) {
+function linesFromLedgerRows(rows, roleMetaById) {
   const byRole = new Map();
   for (const row of rows) {
     const roleId = String(row?.role_id ?? '');
     if (!byRole.has(roleId)) {
+      const meta = roleMetaById.get(roleId) || {};
       byRole.set(roleId, {
         role_id: roleId,
-        role_title: roleTitleById.get(roleId) || 'Role',
+        role_title: meta.title || 'Role',
+        entity_label: meta.entity_label || null,
         quantity: 0,
         unit_price_cents: parseWholeNonNegative(row?.unit_price_cents) ?? 0,
         amount_cents: 0,
@@ -283,26 +324,39 @@ async function applyUsageToInvoice({
     return { applied: false, reason: 'already_billed', items: 0, total_cents: 0 };
   }
 
+  const { familyIds, entityLabelById } = await loadBillingFamily({ db, clientId });
   const { data: roleRows, error: rolesError } = await db
     .from('roles')
-    .select('id,title')
-    .eq('client_id', clientId);
+    .select('id,title,client_id')
+    .in('client_id', familyIds);
   if (rolesError) throw new Error(rolesError.message || 'Usage billing role lookup failed');
-  const roleTitleById = new Map((roleRows || []).map((role) => [String(role.id), String(role.title || '').trim() || 'Role']));
+  const roleMetaById = new Map((roleRows || []).map((role) => [String(role.id), {
+    title: String(role.title || '').trim() || 'Role',
+    entity_label: entityLabelById.get(String(role.client_id ?? '')) || null
+  }]));
 
   let lines;
   if (existing.length) {
     // Resume: bill exactly what the failed attempt reserved.
-    lines = linesFromLedgerRows(existing.filter((row) => row.billed_at == null), roleTitleById);
+    lines = linesFromLedgerRows(existing.filter((row) => row.billed_at == null), roleMetaById);
   } else {
     const usage = await computeUnbilledUsage({ db, clientId, periodEnd, now });
     if (!usage.lines.length) {
       return { applied: false, reason: usage.reason || 'nothing_unbilled', items: 0, total_cents: 0 };
     }
-    await recordUsageLines({
+
+    // Bill exactly what this run reserved, never what it computed. The reserve
+    // is an upsert that skips interviews already on the ledger, so a run that
+    // overlapped with another gets back fewer rows than it asked for — and
+    // billing the computed set would charge the client twice for the interviews
+    // the other run already took.
+    const reserved = await recordUsageLines({
       db, clientId, lines: usage.lines, stripeInvoiceId: invoiceId, periodStart, periodEnd
     });
-    lines = usage.lines;
+    if (!reserved.inserted) {
+      return { applied: false, reason: 'already_reserved', items: 0, total_cents: 0 };
+    }
+    lines = linesFromLedgerRows(reserved.rows, roleMetaById);
   }
 
   if (!lines.length) return { applied: false, reason: 'nothing_unbilled', items: 0, total_cents: 0 };
@@ -317,7 +371,9 @@ async function applyUsageToInvoice({
       currency: 'usd',
       unit_amount: line.unit_price_cents,
       quantity: line.quantity,
-      description: `Interviews — ${line.role_title} (${label})`,
+      description: line.entity_label
+        ? `Interviews — ${line.entity_label} · ${line.role_title} (${label})`
+        : `Interviews — ${line.role_title} (${label})`,
       metadata: {
         client_id: clientId,
         role_id: line.role_id,
@@ -395,6 +451,22 @@ async function createImmediateUsageInvoice({
     metadata: { reason: String(reason || 'admin_request') },
     now
   });
+
+  // Nothing was added — the usual cause is a resumed run whose rows were all
+  // stamped already. Finalizing now would send the client an empty invoice, and
+  // auto_advance would try to collect it, so the draft is discarded instead.
+  if (!applied.applied) {
+    try {
+      await stripe.invoices.del(invoiceId);
+    } catch (discardError) {
+      console.error('usage_invoice_discard_failed', {
+        client_id: clientId,
+        stripe_invoice_id: invoiceId,
+        error: discardError?.message || String(discardError)
+      });
+    }
+    return { skipped: true, reason: applied.reason || 'nothing_applied' };
+  }
 
   await stripe.invoices.finalizeInvoice(invoiceId);
 

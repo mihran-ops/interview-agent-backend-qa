@@ -124,25 +124,30 @@ async function resolvePlanCapacityForClient({ db, clientId, env = process.env } 
     throw new PlanCapacityError('Client membership capacity requires a database and client id.');
   }
 
-  const directSettings = await lookupPlanSettings(db, scopedClientId);
-  if (directSettings) {
-    return resolvePlanCapacity({
-      planTier: directSettings.plan_tier,
-      clientId: scopedClientId,
-      configuredDurationMinutes: directSettings.max_interview_minutes,
-      env,
-    });
-  }
-
+  // Resolve to the billing owner first, the way getRoleInterviewAvailability
+  // does. Plan settings belong to whoever pays: a child entity has no row of its
+  // own, and reading one if it ever appeared would put the two resolvers in
+  // disagreement about the same table.
   const { resolveBillingOwnerForScope } = require('./clientBillingScope');
   const billingScope = await resolveBillingOwnerForScope(db, scopedClientId);
   if (!billingScope?.ok) {
     if (Number(billingScope?.status) >= 500) throw planCapacityLookupError(billingScope?.body);
-    return requirePlanCapacity(null);
+    // The clients row could not be resolved, so there is no billing owner to
+    // read. Settings stored directly against this id are better than refusing
+    // the preflight outright, which is what this did before the owner lookup
+    // was added.
+    const scopedSettings = await lookupPlanSettings(db, scopedClientId);
+    if (!scopedSettings) return requirePlanCapacity(null);
+    return resolvePlanCapacity({
+      planTier: scopedSettings.plan_tier,
+      clientId: scopedClientId,
+      configuredDurationMinutes: scopedSettings.max_interview_minutes,
+      env,
+    });
   }
 
-  const billingClientId = String(billingScope.billingClientId || '').trim();
-  if (!billingClientId || billingClientId === scopedClientId) return requirePlanCapacity(null);
+  const billingClientId = String(billingScope.billingClientId || scopedClientId).trim();
+  if (!billingClientId) return requirePlanCapacity(null);
   const billingSettings = await lookupPlanSettings(db, billingClientId);
   if (!billingSettings) return requirePlanCapacity(null);
   return resolvePlanCapacity({

@@ -61,8 +61,8 @@ function usedInterviews(count, { clientId = CLIENT, roleId = 'role_1', prefix = 
   }));
 }
 
-function makeStripe({ failFinalize = false } = {}) {
-  const calls = { invoices: [], items: [], finalized: [] };
+function makeStripe({ failFinalize = false, failDelete = false } = {}) {
+  const calls = { invoices: [], items: [], finalized: [], deleted: [] };
   return {
     calls,
     invoices: {
@@ -74,6 +74,11 @@ function makeStripe({ failFinalize = false } = {}) {
         if (failFinalize) throw new Error('Stripe is unavailable');
         calls.finalized.push(id);
         return { id, status: 'open' };
+      },
+      del: async (id) => {
+        if (failDelete) throw new Error('Stripe is unavailable');
+        calls.deleted.push(id);
+        return { id, deleted: true };
       }
     },
     invoiceItems: {
@@ -186,6 +191,57 @@ test('a client with no Stripe customer is skipped rather than half invoiced', as
   assert.equal(result.skipped, true);
   assert.equal(result.reason, 'no_stripe_customer');
   assert.deepEqual(db.tables.usage_billing_ledger, []);
+});
+
+// There is unbilled usage, so an invoice is created — but the id it comes back
+// with already carries fully stamped ledger rows, so applyUsageToInvoice adds
+// nothing. Finalizing then would send an empty invoice, and auto_advance would
+// try to collect it.
+const ALREADY_BILLED = Object.freeze({
+  interviews: [
+    { id: 'iv_1', client_id: CLIENT, role_id: 'role_1', status: 'completed', updated_at: '2026-08-01T00:00:00.000Z' },
+    { id: 'iv_2', client_id: CLIENT, role_id: 'role_1', status: 'completed', updated_at: '2026-08-02T00:00:00.000Z' },
+    { id: 'iv_3', client_id: CLIENT, role_id: 'role_1', status: 'completed', updated_at: '2026-08-03T00:00:00.000Z' }
+  ],
+  ledger: [
+    { client_id: CLIENT, role_id: 'role_1', interview_id: 'iv_1', unit_price_cents: 2500, stripe_invoice_id: 'in_1', billed_at: '2026-09-01T00:00:00.000Z' },
+    { client_id: CLIENT, role_id: 'role_1', interview_id: 'iv_2', unit_price_cents: 2500, stripe_invoice_id: 'in_1', billed_at: '2026-09-01T00:00:00.000Z' }
+  ]
+});
+
+test('an invoice that ends up with no lines is discarded, not finalized', async () => {
+  const db = makeDb({ ...ALREADY_BILLED });
+  const stripe = makeStripe();
+
+  const result = await createImmediateUsageInvoice({
+    db, stripe, clientId: CLIENT, periodEnd: NOW, reason: 'admin_request', now: NOW
+  });
+
+  assert.equal(result.skipped, true);
+  assert.equal(stripe.calls.invoices.length, 1, 'the draft was created before we knew it would be empty');
+  assert.deepEqual(stripe.calls.items, [], 'nothing was added to it');
+  assert.deepEqual(stripe.calls.finalized, [], 'an empty invoice must never be finalized');
+  assert.deepEqual(stripe.calls.deleted, ['in_1'], 'the draft must be discarded');
+});
+
+test('a failed discard is logged and still reports skipped rather than charging', async () => {
+  const db = makeDb({ ...ALREADY_BILLED });
+  const stripe = makeStripe({ failDelete: true });
+  const lines = [];
+  const originalError = console.error;
+  console.error = (...args) => lines.push(args);
+  let result;
+  try {
+    result = await createImmediateUsageInvoice({
+      db, stripe, clientId: CLIENT, periodEnd: NOW, reason: 'admin_request', now: NOW
+    });
+  } finally {
+    console.error = originalError;
+  }
+
+  assert.equal(result.skipped, true);
+  assert.deepEqual(stripe.calls.finalized, [], 'a cleanup failure must not fall through to finalize');
+  assert.ok(lines.find(([message]) => message === 'usage_invoice_discard_failed'));
 });
 
 // --- the anniversary ------------------------------------------------------

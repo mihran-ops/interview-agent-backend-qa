@@ -1411,6 +1411,56 @@ function getJdTextFromRoleContext(roleContext) {
     : (typeof roleContext?.job_description_url === 'string' ? roleContext.job_description_url.trim() : '');
 }
 
+// Recomputes a role's capacity once an interview has become "used": draws a
+// credit if the role's own allowance is already spent, then syncs the limit
+// notification on the resulting number.
+//
+// Both paths that make an interview count call this. The scored-transcript path
+// below is one; the other is the final-transcript reconciliation, which answers
+// application.transcription_ready and returns from the webhook before reaching
+// that block at all. The draw is keyed on interview_id, so both firing for the
+// same interview spends nothing twice.
+//
+// Capacity is an accounting side effect of the interview, never a reason to fail
+// handling it, so every failure here is logged and swallowed.
+async function syncInterviewCapacityAfterUse({ interview, fresh, requestId, conversationId }) {
+  const roleId = fresh?.role_id || interview?.role_id || null;
+  const clientId = fresh?.client_id || interview?.client_id || null;
+  const interviewId = fresh?.id || interview?.id || null;
+  if (!roleId || !clientId) return;
+
+  try {
+    const availability = await getRoleInterviewAvailability({
+      db: supabaseAdmin,
+      roleId,
+      clientId
+    });
+    const draw = await syncInterviewCreditDraw({
+      db: supabaseAdmin,
+      clientId,
+      roleId,
+      interviewId,
+      availability
+    });
+    await syncRoleInterviewLimitNotification({
+      db: supabaseAdmin,
+      roleId,
+      clientId,
+      remainingInterviews: draw.remaining_interviews,
+      roleTitle: ''
+    });
+  } catch (syncErr) {
+    console.error('[webhook] role limit sync failed', {
+      request_id: requestId || null,
+      interview_id: interviewId,
+      conversation_id: conversationId || null,
+      role_id: roleId,
+      client_id: clientId,
+      error: syncErr?.message || syncErr
+    });
+  }
+}
+
 async function applyTranscriptScoringForInterview({ interview, fresh, transcriptText, requestId, conversationId }) {
   const transcript = excludeWarmupFromTranscript(transcriptText);
   const substantiveCheck = isSubstantiveTranscript(transcript);
@@ -1526,42 +1576,7 @@ async function applyTranscriptScoringForInterview({ interview, fresh, transcript
     return { updated: false, substantive: substantiveCheck.ok, reason: 'update_failed' };
   }
 
-  const roleIdForAvailability = fresh?.role_id || interview?.role_id || null;
-  const clientIdForAvailability = fresh?.client_id || interview?.client_id || null;
-  if (roleIdForAvailability && clientIdForAvailability) {
-    try {
-      const availability = await getRoleInterviewAvailability({
-        db: supabaseAdmin,
-        roleId: roleIdForAvailability,
-        clientId: clientIdForAvailability
-      });
-      // The scored transcript is what makes this interview count, so this is the
-      // moment it draws a credit if the role's own allowance is already spent.
-      const draw = await syncInterviewCreditDraw({
-        db: supabaseAdmin,
-        clientId: clientIdForAvailability,
-        roleId: roleIdForAvailability,
-        interviewId: fresh?.id || interview?.id || null,
-        availability
-      });
-      await syncRoleInterviewLimitNotification({
-        db: supabaseAdmin,
-        roleId: roleIdForAvailability,
-        clientId: clientIdForAvailability,
-        remainingInterviews: draw.remaining_interviews,
-        roleTitle: ''
-      });
-    } catch (syncErr) {
-      console.error('[webhook] role limit sync failed', {
-        request_id: requestId || null,
-        interview_id: interview?.id || null,
-        conversation_id: conversationId || null,
-        role_id: roleIdForAvailability,
-        client_id: clientIdForAvailability,
-        error: syncErr?.message || syncErr
-      });
-    }
-  }
+  await syncInterviewCapacityAfterUse({ interview, fresh, requestId, conversationId });
 
   return { updated: true, substantive: substantiveCheck.ok, reason: substantiveCheck.reason };
 }
@@ -2395,6 +2410,16 @@ async function reconcileFinalTranscript({ body, interview, requestId, conversati
     classificationCounts: evidenceSnapshot.classification_counts,
     retryable: false,
   }));
+
+  // The reconciliation RPC is what writes the scores and the evidence snapshot,
+  // so this is the moment the interview becomes "used" on the video path.
+  // already_reconciled is included because a delivery that finalized and then
+  // failed before this point retries as already_reconciled, and the capacity
+  // sync would otherwise never run for that interview.
+  if (finalized.outcome === 'finalized' || finalized.outcome === 'already_reconciled') {
+    await syncInterviewCapacityAfterUse({ interview, requestId, conversationId });
+  }
+
   queueFinalTranscriptPostProcessing({
     interview,
     requestId,

@@ -325,6 +325,23 @@ test('a late transcript for an interview already drawn for does not draw again',
   assert.equal(db.tables.interview_credit_draws.length, 1);
 });
 
+test('both webhook paths firing for one interview spend exactly one credit', async () => {
+  // The scored-transcript path and the final-transcript reconciliation can both
+  // run for the same interview. Each calls the same capacity sync, so the guard
+  // that keeps this from double-spending is the unique interview_id on the draw.
+  const db = makeDb({ included: 1, interviews: usedMany(3), credits: [credit({ remaining: 4 })] });
+
+  const first = await drawFor(db, 'iv_3');
+  const second = await drawFor(db, 'iv_3');
+
+  assert.equal(first.result.drawn, true);
+  assert.equal(second.result.drawn, false);
+  assert.equal(second.result.reason, 'already_drawn');
+  assert.equal(second.result.credit_id, first.result.credit_id, 'the same credit paid for it');
+  assert.equal(db.tables.interview_credits[0].remaining, 3, 'exactly one unit left the client');
+  assert.equal(db.tables.interview_credit_draws.length, 1);
+});
+
 test('an Essentials client never draws, however far over it runs', async () => {
   const db = makeDb({
     planTier: 'basic', billingModel: 'fixed', included: 1,
@@ -472,4 +489,31 @@ test('both used-transition paths draw before notifying', () => {
       `${relative} must draw the credit and notify on the adjusted remaining`
     );
   }
+});
+
+test('the final-transcript path syncs capacity too, not just the scoring path', () => {
+  // application.transcription_ready is answered by reconcileFinalTranscript,
+  // which returns from the webhook before the scoring block further down. If the
+  // sync is not called there, a video interview never draws a credit.
+  const source = fs.readFileSync(path.join(ROOT, 'src', 'services', 'tavusEvents', 'index.js'), 'utf8');
+
+  // queueFinalTranscriptPostProcessing is declared above reconcileFinalTranscript,
+  // so the closing anchor has to be its call site inside it.
+  const reconcileStart = source.indexOf('async function reconcileFinalTranscript');
+  const reconcile = source.slice(
+    reconcileStart,
+    source.indexOf('queueFinalTranscriptPostProcessing({', reconcileStart)
+  );
+  assert.ok(reconcile.length, 'expected reconcileFinalTranscript to be present');
+  assert.match(reconcile, /await syncInterviewCapacityAfterUse\(\{ interview/,
+    'the reconciliation path must recompute capacity once the transcript is authoritative');
+  assert.match(reconcile, /finalized\.outcome === 'already_reconciled'/,
+    'a retry after a partial failure must still sync');
+
+  const scoring = source.slice(
+    source.indexOf('async function applyTranscriptScoringForInterview'),
+    source.indexOf('function isEmptyQuestionList')
+  );
+  assert.match(scoring, /await syncInterviewCapacityAfterUse\(\{ interview/,
+    'the scoring path must use the same helper, not its own copy');
 });
