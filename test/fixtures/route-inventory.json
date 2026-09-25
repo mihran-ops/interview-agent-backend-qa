@@ -110,7 +110,6 @@
   "PATCH /admin/automation/rules/:ruleId/resume",
   "PATCH /admin/clients/:id/access-override",
   "PATCH /admin/clients/:id/auto-renew",
-  "PATCH /admin/clients/:id/plan-settings",
   "PATCH /admin/clients/:parentClientId/entities/:entityClientId",
   "PATCH /admin/clients/:parentClientId/entities/:entityClientId/archive",
   "PATCH /admin/clients/:parentClientId/entities/:entityClientId/restore",

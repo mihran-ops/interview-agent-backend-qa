@@ -65,7 +65,7 @@ test('every billing migration on disk is listed, and every listed one exists', (
 test('the admin endpoints in the document are the ones registered', () => {
   const inventory = JSON.parse(fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'route-inventory.json'), 'utf8'));
   const documented = [
-    ['PATCH', '/admin/clients/:id/plan-settings'],
+    ['POST', '/admin/billing/agreements/send'],
     ['POST', '/admin/clients/:id/usage-invoice'],
     ['GET', '/admin/clients/:id/billing-summary'],
     ['GET', '/clients/billing/credits'],

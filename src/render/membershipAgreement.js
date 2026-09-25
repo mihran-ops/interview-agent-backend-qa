@@ -223,6 +223,9 @@ function normalizeMembershipAgreementInput(input = {}) {
     per_role_fee: normalizeMoneyInput(input.per_role_fee || input.perRoleFee),
     additional_interview_fee: normalizeMoneyInput(input.additional_interview_fee || input.additionalInterviewFee),
     included_interviews_per_role: normalizeWholeNumberInput(input.included_interviews_per_role || input.includedInterviewsPerRole),
+    // Coerced to a string first: normalizeText reads a numeric 0 as empty, and a
+    // zero-cent usage price is a real price, not an absence.
+    usage_interview_fee_cents: normalizeCentsInput(String(input.usage_interview_fee_cents ?? input.usageInterviewFeeCents ?? '')),
     max_interview_minutes: normalizeWholeNumberInput(input.max_interview_minutes || input.maxInterviewMinutes || input.interview_duration_minutes || input.interviewDurationMinutes),
     first_role_prepay: normalizeFirstRolePrepayInput(input.first_role_prepay || input.firstRolePrepay),
     initial_term_start: normalizeDateInput(input.initial_term_start || input.initialTermStart),

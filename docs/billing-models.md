@@ -125,29 +125,45 @@ left alone and the usage is carried into the next cycle. This is logged as
 
 All of these require an authenticated administrator.
 
-### Set a client's pricing and model
+### How a client's pricing and model are set
 
-```
-PATCH /admin/clients/:id/plan-settings
-```
+There is no direct edit. Pricing is set on the **membership agreement** — the
+Billing → Agreement Generator form in the admin console — and becomes the
+client's plan settings only once the client has signed and paid:
 
-Every field is optional; only the ones sent are changed.
+1. An administrator generates the agreement
+   (`POST /admin/billing/agreements/send`), choosing the membership tier and
+   billing option, and for Enterprise the platform fee, per-role fee, included
+   interviews per role, additional-interview fee and per-interview usage price.
+2. The client opens the signing link, signs, and pays through Stripe checkout.
+3. The Stripe subscription webhook writes `client_plan_settings` from the
+   agreement's values.
+
+Until step 3 nothing is written, so an agreement that is never paid changes
+nothing.
 
 | Field | Meaning | Units |
 | --- | --- | --- |
-| `billing_model` | `fixed`, `rollover` or `usage` | — |
 | `per_role_fee` | Charge to open a role | dollars |
 | `included_interviews_per_role` | Free interviews per role | count |
 | `additional_interview_fee` | Price of a top-up interview | dollars |
 | `usage_interview_fee_cents` | Enterprise per-interview price | **cents** |
-| `rollover_days` | How long Pro credit lasts | days |
 
 Note the mixed units: `usage_interview_fee_cents` is in cents, the other money
 fields are in dollars. This follows the existing column conventions.
 
-One invalid value rejects the whole request, so a client's pricing is never left
-half-changed. Changes are recorded in the application log as
-`admin_plan_settings_updated`, with who made them and which fields changed.
+`billing_model` is not a field anyone sets. It is derived from the tier every
+time the webhook runs — Essentials → `fixed`, Pro → `rollover`, Enterprise →
+`usage`. `rollover_days` is 90 for every client; there is no setting for it.
+
+> **The Agreement Generator form does not yet have a field for the Enterprise
+> per-interview usage price.** The backend accepts `usage_interview_fee_cents`
+> on the agreement and carries it through to the client's plan settings, but
+> the form has no input for it. Until one is added, Enterprise usage cannot be
+> priced through the form, and a usage client is billed nothing for overage.
+
+`POST /admin/clients/:id/subscription-checkout` is the other way to start an
+Enterprise subscription. It takes the same fields directly in the request body.
 
 ### Raise a usage invoice now
 
@@ -261,12 +277,13 @@ Rolling back is a configuration change, not a migration.
 1. **Stop the charging.** Remove the `invoice.created` subscription from the
    Stripe webhook endpoint and disable the daily usage cron. No further usage is
    billed from that moment.
-2. **Stop the credits.** Set every client's `billing_model` to `fixed` through
-   `PATCH /admin/clients/:id/plan-settings`. Availability then reports exactly
-   the numbers it reported before this feature existed, and no further credits
-   are minted or spent.
+2. **Stop the credits.** The billing model is derived from the plan tier, so
+   there is no setting to flip. The durable rollback is to revert the Billing 2
+   and Billing 3 commits. As a stopgap, `update client_plan_settings set
+   billing_model = 'fixed'` stops minting and spending immediately — but the
+   next subscription webhook for a Pro client will derive `rollover` again, so
+   this holds only until that client's subscription next changes.
 
-That is sufficient — the new columns and tables are inert once no client is on
-`rollover` or `usage`. Leave them in place: they hold the record of what was
+Once no client is on `rollover` or `usage`, the new columns and tables are inert. Leave them in place: they hold the record of what was
 billed and what credit was issued, which is needed to answer questions about past
 invoices. Dropping them would discard that history.
