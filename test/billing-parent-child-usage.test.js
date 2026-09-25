@@ -401,6 +401,32 @@ test('an overlap that takes only some interviews bills only the rest', async () 
     'a line rebuilt from reserved rows keeps the entity label');
 });
 
+test('a stamp claims only rows reserved against its own invoice', async () => {
+  // Rows left unstamped by an invoice that never completed must survive a later
+  // invoice covering the same interviews, or the abandoned reservation is
+  // silently adopted and the interviews are billed on the wrong invoice.
+  const db = makeDb({
+    interviews: usedInterviews(2, { clientId: CHILD, roleId: 'role_child', prefix: 'c' }),
+    ledger: [
+      { client_id: PARENT, role_id: 'role_child', interview_id: 'c_1', unit_price_cents: 2500, stripe_invoice_id: 'in_abandoned', billed_at: null },
+      { client_id: PARENT, role_id: 'role_child', interview_id: 'c_2', unit_price_cents: 2500, stripe_invoice_id: 'in_mine', billed_at: null }
+    ]
+  });
+  const stripe = {
+    invoiceItems: { create: async () => ({ id: 'ii_1' }) }
+  };
+
+  await applyUsageToInvoice({
+    db, stripe, clientId: PARENT, customerId: 'cus_1', invoiceId: 'in_mine',
+    periodStart: '2026-08-01T00:00:00.000Z', periodEnd: PERIOD_END
+  });
+
+  const byInterview = Object.fromEntries(db.tables.usage_billing_ledger.map((row) => [row.interview_id, row]));
+  assert.ok(byInterview.c_2.billed_at, 'this invoice stamps its own row');
+  assert.equal(byInterview.c_1.billed_at, null, 'and leaves the abandoned reservation alone');
+  assert.equal(byInterview.c_1.stripe_invoice_id, 'in_abandoned');
+});
+
 // --- the deliberate asymmetry ---------------------------------------------
 
 test('credits do not roll up: a parent does not see a child credit', async () => {

@@ -248,9 +248,15 @@ async function findLastBilledPeriodEnd({ db, clientId } = {}) {
   return toIso(data?.period_end);
 }
 
-/** Stamps the Stripe item and the billing time onto the rows it paid for. */
-async function markUsageLinesBilled({ db, interviewIds, stripeInvoiceItemId, billedAt } = {}) {
-  if (!db || !Array.isArray(interviewIds) || !interviewIds.length) return 0;
+/**
+ * Stamps the Stripe item and the billing time onto the rows it paid for.
+ *
+ * Scoped to the invoice as well as the interviews: rows reserved against an
+ * invoice that never completed must not be claimed by a later invoice that
+ * happens to cover the same interviews.
+ */
+async function markUsageLinesBilled({ db, stripeInvoiceId, interviewIds, stripeInvoiceItemId, billedAt } = {}) {
+  if (!db || !stripeInvoiceId || !Array.isArray(interviewIds) || !interviewIds.length) return 0;
   const { data, error } = await db
     .from('usage_billing_ledger')
     .update({
@@ -258,6 +264,7 @@ async function markUsageLinesBilled({ db, interviewIds, stripeInvoiceItemId, bil
       billed_at: toIso(billedAt) || new Date().toISOString()
     })
     .in('interview_id', interviewIds)
+    .eq('stripe_invoice_id', stripeInvoiceId)
     .is('billed_at', null)
     .select('id');
   if (error) throw new Error(error.message || 'Usage billing ledger stamp failed');
@@ -384,6 +391,7 @@ async function applyUsageToInvoice({
 
     await markUsageLinesBilled({
       db,
+      stripeInvoiceId: invoiceId,
       interviewIds: line.interview_ids,
       stripeInvoiceItemId: item?.id || null,
       billedAt: toIso(now) || new Date().toISOString()

@@ -16,6 +16,39 @@ const { secretsMatch } = require('../../services/secretCompare');
 
 const router = express.Router();
 
+// PostgREST caps a response at 1,000 rows by default, so both lookups below page
+// rather than silently billing only the first page once there are more usage
+// clients than that. Each page is ordered, without which range paging can repeat
+// or skip rows.
+const PAGE_SIZE = 500;
+// An `in` filter becomes a query string, so the id list is sent in chunks rather
+// than as one very long URL.
+const ID_CHUNK_SIZE = 200;
+// A stop so a backend that never returns a short page cannot spin forever.
+const MAX_PAGES = 200;
+
+async function readAllPages(buildQuery) {
+  const rows = [];
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const from = page * PAGE_SIZE;
+    const { data, error } = await buildQuery().range(from, from + PAGE_SIZE - 1);
+    if (error) return { rows: null, error };
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) return { rows, error: null };
+  }
+  console.warn('usage_billing_cron_page_limit_reached', { page_size: PAGE_SIZE, max_pages: MAX_PAGES });
+  return { rows, error: null };
+}
+
+function chunk(values, size) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
 router.post('/billing/usage-invoices', async (req, res) => {
   const expectedSecret = String(process.env.USAGE_BILLING_CRON_SECRET || '')
   const providedSecret = String(req.get('x-cron-secret') || '')
@@ -27,10 +60,11 @@ router.post('/billing/usage-invoices', async (req, res) => {
   const now = new Date()
 
   try {
-    const { data: settings, error: settingsError } = await supabaseAdmin
+    const { rows: settings, error: settingsError } = await readAllPages(() => supabaseAdmin
       .from('client_plan_settings')
       .select('client_id')
       .eq('billing_model', 'usage')
+      .order('client_id', { ascending: true }))
     if (settingsError) {
       return res.status(500).json({ error: 'usage_clients_lookup_failed', detail: settingsError.message })
     }
@@ -41,16 +75,21 @@ router.post('/billing/usage-invoices', async (req, res) => {
       return res.json({ ok: true, considered: 0, invoiced: 0, skipped: 0, failed: 0, total_cents: 0, results: [] })
     }
 
-    const { data: clients, error: clientsError } = await supabaseAdmin
-      .from('clients')
-      .select('id,name,billing_interval,stripe_customer_id,contract_start_at,current_term_end')
-      .in('id', clientIds)
-      .eq('billing_interval', 'annual')
-    if (clientsError) {
-      return res.status(500).json({ error: 'usage_clients_lookup_failed', detail: clientsError.message })
+    const clients = []
+    for (const idChunk of chunk(clientIds, ID_CHUNK_SIZE)) {
+      const { rows, error: clientsError } = await readAllPages(() => supabaseAdmin
+        .from('clients')
+        .select('id,name,billing_interval,stripe_customer_id,contract_start_at,current_term_end')
+        .in('id', idChunk)
+        .eq('billing_interval', 'annual')
+        .order('id', { ascending: true }))
+      if (clientsError) {
+        return res.status(500).json({ error: 'usage_clients_lookup_failed', detail: clientsError.message })
+      }
+      clients.push(...rows)
     }
 
-    const due = (clients || []).filter((client) => isAnniversaryToday(client, now))
+    const due = clients.filter((client) => isAnniversaryToday(client, now))
 
     // Required here rather than at the top of the file so that mounting this
     // router does not construct the Stripe client, the way the other routes that

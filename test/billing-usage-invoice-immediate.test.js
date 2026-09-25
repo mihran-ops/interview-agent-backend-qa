@@ -445,6 +445,50 @@ test('one failing client does not stop the rest of the run', async () => {
   });
 });
 
+test('the cron pages past the row cap instead of billing only the first page', async () => {
+  await withCronSecret(async () => {
+    // PostgREST returns at most 1,000 rows per request and the route pages at
+    // 500, so a client beyond the first page must still be picked up.
+    const today = new Date();
+    const anchor = `2025-01-${String(today.getUTCDate()).padStart(2, '0')}T00:00:00.000Z`;
+    const clients = [];
+    const planSettings = [];
+    for (let i = 0; i < 1200; i += 1) {
+      const id = `bulk_${String(i).padStart(4, '0')}`;
+      clients.push({
+        id, parent_client_id: null, stripe_customer_id: `cus_${i}`,
+        billing_interval: i === 1100 ? 'annual' : 'monthly', contract_start_at: anchor
+      });
+      planSettings.push({
+        client_id: id, plan_tier: 'enterprise', billing_model: 'usage',
+        included_interviews_per_role: 0, per_role_fee: 0,
+        usage_interview_fee_cents: 2500, rollover_days: 90
+      });
+    }
+    const db = makeDb({
+      clients,
+      planSettings,
+      roles: [{ id: 'role_bulk', client_id: 'bulk_1100', title: 'Hygienist' }],
+      interviews: usedInterviews(2, { clientId: 'bulk_1100', roleId: 'role_bulk', prefix: 'b' })
+    });
+    const stripe = makeStripe();
+
+    const originalLog = console.log;
+    console.log = () => {};
+    let res;
+    try {
+      res = await runCron(loadCron(db, stripe));
+    } finally {
+      console.log = originalLog;
+    }
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.considered, 1, 'the only annual client sits past the first page');
+    assert.equal(res.body.invoiced, 1);
+    assert.equal(stripe.calls.invoices[0].metadata.client_id, 'bulk_1100');
+  });
+});
+
 test('the cron uses the same secret shape as the other internal routes', () => {
   const source = fs.readFileSync(internalUsagePath, 'utf8');
   assert.match(source, /process\.env\.USAGE_BILLING_CRON_SECRET/);

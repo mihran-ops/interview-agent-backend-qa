@@ -177,6 +177,20 @@ test('expired and revoked credits are not shown', async () => {
   assert.deepEqual(res.body.items, []);
 });
 
+test('a role title is only read from the caller own roles', async () => {
+  // The source role ids come from credits already scoped to the client, so this
+  // is defence in depth rather than a live leak — but a title lookup with no
+  // client filter is one bad credit row away from showing another client's role.
+  const db = makeDb({ credits: [credit({ source_role_id: 'role_theirs' })] });
+  db.tables.roles.push({ id: 'role_theirs', client_id: THEIRS, title: 'Confidential Role' });
+
+  const res = await request(loadClientApp(db)).get('/clients/billing/credits');
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.items[0].source_role_title, null,
+    'a role outside the client must not resolve to a title');
+});
+
 test('a client cannot read the credits of a client it is not a member of', async () => {
   const db = makeDb({ credits: [credit({ client_id: THEIRS, source_role_id: 'role_theirs' })] });
 

@@ -8,6 +8,7 @@ const { buildClientDashboardReturnUrl } = require('../../config/urlConfig');
 const { resolveBillingOwnerForScope } = require('../../services/clientBillingScope');
 const { canViewLegalBillingForClient } = require('../../services/clientScope');
 const { supabaseAdmin } = require('../../clients/supabase');
+const { normalizeBillingModel } = require('../../services/billingModel');
 const { listAvailableCredits } = require('../../services/interviewCredits');
 const { computeUnbilledUsage } = require('../../services/usageBilling');
 const { requireAuth, withClientScope } = require('../../middleware/auth');
@@ -121,6 +122,7 @@ router.get('/clients/billing/credits', requireAuth, withClientScope, async (req,
       .from('roles')
       .select('id,title')
       .in('id', sourceRoleIds)
+      .eq('client_id', clientId)
     if (rolesError) return res.status(500).json({ error: 'list_credits_failed', detail: rolesError.message })
     const titleById = new Map((roles || []).map((role) => [String(role.id), role.title || null]))
 
@@ -226,10 +228,24 @@ router.post('/clients/billing/additional-interviews/checkout-session', requireAu
 
     const { data: planSettings, error: planSettingsErr } = await supabaseAdmin
       .from('client_plan_settings')
-      .select('additional_interview_fee')
+      .select('additional_interview_fee,plan_tier,billing_model')
       .eq('client_id', billingClientId)
       .maybeSingle()
     if (planSettingsErr) return res.status(500).json({ error: 'plan_settings_lookup_failed', detail: planSettingsErr.message })
+
+    // Usage clients are invoiced for interviews beyond the included count after
+    // the fact, so buying them in advance would charge twice. Refused with its
+    // own code, before the price check — an Enterprise client on this model is
+    // normally configured with no top-up price at all, and the generic
+    // invalid_additional_interview_fee reads like a misconfiguration.
+    const billingModel = normalizeBillingModel(planSettings?.billing_model, planSettings?.plan_tier)
+    if (billingModel === 'usage') {
+      return res.status(409).json({
+        error: 'usage_billing_no_top_ups',
+        code: 'USAGE_BILLING_NO_TOP_UPS',
+        detail: 'This plan bills interviews beyond the included count on your invoice, so they are not purchased in advance.'
+      })
+    }
 
     const additionalInterviewFee = Number(planSettings?.additional_interview_fee)
     if (!Number.isFinite(additionalInterviewFee) || additionalInterviewFee <= 0) {

@@ -56,6 +56,8 @@ function createFakeSupabase(tables = {}, options = {}) {
   const calls = [];
   const unique = options.unique || {};
   const failOn = options.failOn || {};
+  // Mirrors PostgREST's default max-rows ceiling.
+  const maxRows = Number.isInteger(options.maxRows) ? options.maxRows : 1000;
 
   const rowsOf = (table) => {
     if (!Array.isArray(tables[table])) tables[table] = [];
@@ -78,6 +80,7 @@ function createFakeSupabase(tables = {}, options = {}) {
     let ignoreDuplicates = false;
     let ordering = null;
     let limit = null;
+    let range = null;
 
     const resolveRows = () => {
       let selected = rowsOf(table).filter((row) => matches(row, filters));
@@ -87,7 +90,13 @@ function createFakeSupabase(tables = {}, options = {}) {
           return compare(a?.[ordering.column], b?.[ordering.column]) * direction;
         });
       }
+      // PostgREST range is inclusive at both ends.
+      if (range) selected = selected.slice(range.from, range.to + 1);
       if (limit != null) selected = selected.slice(0, limit);
+      // PostgREST caps every response, whatever the caller asked for. Emulated
+      // so that code which forgets to page is caught here rather than in
+      // production, where the truncation is silent.
+      if (selected.length > maxRows) selected = selected.slice(0, maxRows);
       return selected;
     };
 
@@ -149,6 +158,7 @@ function createFakeSupabase(tables = {}, options = {}) {
       not(column, operator, value) { filters.push({ op: 'not', column, value: { op: operator, value } }); return query; },
       order(column, opts = {}) { ordering = { column, ascending: opts.ascending !== false }; return query; },
       limit(value) { limit = value; return query; },
+      range(from, to) { range = { from, to }; return query; },
       insert(payload) {
         pendingInsert = Array.isArray(payload) ? payload : [payload];
         calls.push({ table, op: 'insert', payload });
